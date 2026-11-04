@@ -6,13 +6,31 @@ then keeps a full analysis of every session on the phone with JSON export. No se
 
 ## Files
 
-| File | Purpose |
-|---|---|
-| `index.html` | The whole app: live dashboard, history analysis, settings |
-| `pm5.js` | PM5 Bluetooth protocol: UUIDs, byte parsers, `PM5` client, `PM5Simulator` demo |
-| `vendor/plotly-4.2.0.min.js` | Plotly.js (full build, MIT) — vendored so the app works offline and needs no CDN |
-| `manifest.json`, `icon*.png`, `icon.svg` | PWA install metadata and icons |
-| `sw.js` | Service worker — caches everything so the app opens offline |
+```
+index.html          app shell: header, connection, settings, screen switcher
+app.js              shell logic; mounts screens once and keeps them alive (BLE never drops)
+core/               shared by every screen
+  pm5.js            PM5 Bluetooth protocol + simulator
+  session.js        the one place that talks to the erg; emits normalized events
+                    (conn, status, sample, stroke, power, force, reset, saved, end)
+  store.js          IndexedDB sessions, summaries, JSON export
+  charts.js         Plotly figure builders (type scale + aspect-ratio limits)
+  theme.js          prefs, light/dark, accents, layout mode
+  format.js         formatting + numeric helpers
+  ui.js, ui.css     DOM helpers, design tokens and components
+  prepaint.js       applies theme before first paint (no flash)
+  gfx.js            3D foundation: renderer, post-processing, procedural textures
+screens/
+  live.js           live dashboard            history.js   session analysis
+  about.js          connect / data notes      *.html.js    each screen's markup
+  stones/stage.js   Atlas Stones arena (look-dev)
+  quarry/stage.js   Quarry voxel face (look-dev)
+lab/                standalone look-dev pages for the 3D scenes
+vendor/             Plotly 4.2.0, three.js 0.187.0 bundle (both MIT)
+```
+
+A new screen is a module exporting `{ id, mount(el, app), show(), hide() }` that subscribes to
+`engine.on('stroke', …)` etc. — it never touches Bluetooth.
 
 ## Live dashboard
 

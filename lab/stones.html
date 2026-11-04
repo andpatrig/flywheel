@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Atlas Stones — look-dev</title>
+<script src="../core/prepaint.js"></script>
+<script>
+  // game arenas are always dark: force the dark theme and the dark (neon) variant of the chosen accent
+  (function () { var p = {}; try { p = JSON.parse(localStorage.getItem('flywheel.prefs') || '{}'); } catch (e) {}
+    var a = window.FW_ACCENTS[p.accent] || window.FW_ACCENTS.cyan, r = document.documentElement;
+    r.dataset.theme = 'dark'; r.style.setProperty('--accent', a.d); })();
+</script>
+<link rel="stylesheet" href="../core/ui.css">
+<style>
+  html, body { background: #060708; }
+  #stage { position: fixed; inset: 0; }
+  .hud { position: fixed; inset: 0; pointer-events: none; color: #f2f2f0;
+    padding: calc(env(safe-area-inset-top, 0px) + 1.25rem) calc(env(safe-area-inset-right, 0px) + 1.5rem) calc(env(safe-area-inset-bottom, 0px) + 1.25rem) calc(env(safe-area-inset-left, 0px) + 1.5rem);
+    display: grid; grid-template-rows: auto 1fr auto; text-shadow: 0 1px 12px rgba(0,0,0,0.45); }
+  .hud::before, .hud::after { content: ''; position: fixed; left: 0; right: 0; pointer-events: none; z-index: -1; }
+  .hud::before { top: 0; height: 9rem; background: linear-gradient(rgba(4,5,6,0.62), rgba(4,5,6,0)); }
+  .hud::after { bottom: 0; height: 7rem; background: linear-gradient(rgba(4,5,6,0), rgba(4,5,6,0.55)); }
+  .hud { z-index: 1; isolation: isolate; }
+  .hud .eyebrow { color: rgba(242,242,240,0.62); }
+  .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+  .title { white-space: nowrap; font-size: 1.15rem; font-weight: 650; margin-top: 0.35rem; letter-spacing: -0.01em; }
+  .title span { color: rgba(242,242,240,0.6); font-weight: 500; }
+  .read { text-align: right; }
+  .big { font-size: clamp(2.4rem, 7vw, 4.5rem); font-weight: 620; letter-spacing: -0.035em; line-height: 0.95; color: var(--accent); }
+  .big .u { font-size: 0.34em; color: rgba(242,242,240,0.7); font-weight: 500; letter-spacing: 0; margin-left: 0.15em; }
+  .sub { color: rgba(242,242,240,0.62); font-size: 0.85rem; margin-top: 0.35rem; white-space: nowrap; }
+  @media (max-width: 560px) { .wide-only { display: none; } }
+  .bottom { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; }
+  .stonebar { display: flex; gap: 6px; align-items: flex-end; }
+  .stonebar .s { width: 2.6rem; }
+  .stonebar .track { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.18); overflow: hidden; }
+  .stonebar .fill { height: 100%; background: var(--accent); }
+  .stonebar .kg { font-size: 0.72rem; color: rgba(242,242,240,0.55); margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .stonebar .s.cur .kg { color: #f2f2f0; }
+  .gstat { text-align: right; }
+  .gstat .v { font-size: 1.6rem; font-weight: 620; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .gstat .v small { font-size: 0.5em; color: rgba(242,242,240,0.65); font-weight: 500; margin-left: 2px; }
+  .gain { color: var(--accent); }
+  @media (max-aspect-ratio: 1/1) { .stonebar .s { width: 2.1rem; } .gstat .v { font-size: 1.3rem; } }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div class="hud">
+  <div class="top">
+    <div><div class="eyebrow">Atlas stones</div><div class="title">Stone 1 <span>of 5 · 100 kg</span></div></div>
+    <div class="read"><div class="big num">0.74<span class="u">m</span></div><div class="sub num">of 1.30 m · <span class="gain">+0.37 m</span><span class="wide-only"> last stroke</span></div></div>
+  </div>
+  <div></div>
+  <div class="bottom">
+    <div class="stonebar">
+      <div class="s"><div class="track"><div class="fill" style="width:100%"></div></div><div class="kg">100</div></div>
+      <div class="s"><div class="track"><div class="fill" style="width:100%"></div></div><div class="kg">120</div></div>
+      <div class="s cur"><div class="track"><div class="fill" style="width:57%"></div></div><div class="kg">140</div></div>
+      <div class="s"><div class="track"><div class="fill" style="width:0%"></div></div><div class="kg">160</div></div>
+      <div class="s"><div class="track"><div class="fill" style="width:0%"></div></div><div class="kg">180</div></div>
+    </div>
+    <div class="gstat"><div class="v num">0:21.4</div><div class="sub num">512 J · 4.2 kJ total</div></div>
+  </div>
+</div>
+<script type="module">
+import { createRenderer, roomEnvironment } from '../core/gfx.js';
+import { createStage, PLATFORM_H } from '../screens/stones/stage.js';
+import { createStonesGame } from '../screens/stones/game.js';
+import { engine } from '../core/session.js';
+
+const qs = new URLSearchParams(location.search), OFFLINE = qs.has('offline');
+const gfx = createRenderer(document.getElementById('stage'), { quality: 'high' });
+const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#00e5ff';
+const stage = createStage({ renderer: gfx.renderer, envMap: roomEnvironment(gfx.renderer), accent, maxShadow: gfx.maxShadow });
+const game = createStonesGame(stage);
+
+function resize() { gfx.setSize(innerWidth, innerHeight); stage.frame(innerWidth, innerHeight); }
+addEventListener('resize', resize); resize();
+
+// ---------- HUD
+const $ = (s) => document.querySelector(s);
+const fmtT = (t) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
+function hud() {
+  const st = game.state();
+  $('.title').innerHTML = st.finished ? 'All five <span>· 700 kg loaded</span>' : `Stone ${st.index + 1} <span>of 5 · ${st.mass} kg</span>`;
+  $('.big').innerHTML = `${st.height.toFixed(2)}<span class="u">m</span>`;
+  $('.read .sub').innerHTML = `of ${PLATFORM_H.toFixed(2)} m · <span class="gain">+${st.lastGain.toFixed(2)} m</span><span class="wide-only"> last stroke</span>`;
+  document.querySelectorAll('.stonebar .s').forEach((el, i) => { el.querySelector('.fill').style.width = (st.progress[i] * 100).toFixed(0) + '%'; el.classList.toggle('cur', i === st.index); });
+  $('.gstat .v').textContent = fmtT(st.time);
+  $('.gstat .sub').textContent = `${(st.total / 1000).toFixed(1)} kJ rowed${st.bank > 30 ? ` · ${Math.round(st.bank)} J banked` : ''}`;
+}
+
+const vh = () => gfx.renderer.domElement.height;
+if (OFFLINE) {
+  // deterministic: metronome strokes, fixed timestep
+  const W = +(qs.get('work') || 430), period = +(qs.get('period') || 2.5);
+  let simT = 0, nextStroke = 0.4;
+  const step = (dt) => { simT += dt; while (simT >= nextStroke) { game.onStroke(W, 0.8); nextStroke += period; } game.update(dt, vh()); };
+  window.__advance = (sec, dt = 1 / 60) => { for (let t = 0; t < sec; t += dt) step(dt); hud(); return game.state(); };
+  window.__frame = (dt = 1 / 24) => { step(dt); hud(); gfx.render(stage.scene, stage.camera, simT); return game.state(); };
+  window.__render = () => gfx.render(stage.scene, stage.camera, simT);
+  window.__state = () => ({ ...game.state(), S: { phase: game.S.phase, th: game.S.th, yc: game.S.yc } });
+  window.__stage = stage;
+  window.__cam = (p, t) => stage.setView(new (stage.camera.position.constructor)(...p), new (stage.camera.position.constructor)(...t));
+  hud(); gfx.render(stage.scene, stage.camera, 0);
+} else {
+  engine.on('stroke', ({ stroke }) => game.onStroke(stroke.workPerStroke, stroke.driveTime));
+  engine.demo();
+  let last = performance.now();
+  const loop = (now) => { const dt = (now - last) / 1000; last = now; game.update(dt, vh()); hud(); gfx.render(stage.scene, stage.camera, now / 1000); if (!window.__still) requestAnimationFrame(loop); };
+  requestAnimationFrame(loop);
+}
+window.__ready = true;
+</script>
+</body>
+</html>

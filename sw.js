@@ -1,6 +1,11 @@
 // Offline cache. Bump CACHE on every deploy so phones pick up the new version.
-const CACHE = 'flywheel-v4';
-const ASSETS = ['./', './index.html', './pm5.js', './manifest.json', './icon.svg', './icon-180.png', './icon-192.png', './icon-512.png', './vendor/plotly-4.2.0.min.js'];
+const CACHE = 'flywheel-v6';
+const ASSETS = [
+  './', './index.html', './app.js', './manifest.json', './icon.svg', './icon-180.png', './icon-192.png', './icon-512.png',
+  './core/prepaint.js', './core/ui.css', './core/ui.js', './core/theme.js', './core/format.js', './core/pm5.js', './core/session.js', './core/store.js', './core/charts.js',
+  './screens/live.js', './screens/live.html.js', './screens/history.js', './screens/history.html.js', './screens/about.js', './screens/about.html.js',
+  './vendor/plotly-4.2.0.min.js',
+];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', (e) => {
