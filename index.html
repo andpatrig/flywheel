@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0d0d0d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Flywheel">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="icon" href="icon.svg">
+<title>Flywheel — Concept2 PM5 live data</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --surface-2: #232322;
+    --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --good: #0ca30c; --critical: #d03b3b; --warning: #fab219;
+    --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--page); color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+  body { padding: calc(var(--sat) + 8px) 12px calc(var(--sab) + 24px); max-width: 640px; margin: 0 auto; }
+  header { display: flex; align-items: center; gap: 10px; padding: 6px 2px 12px; }
+  header h1 { font-size: 18px; margin: 0; font-weight: 650; letter-spacing: -0.01em; flex: 1; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); display: inline-block; margin-right: 6px; }
+  .dot.on { background: var(--good); box-shadow: 0 0 8px var(--good); }
+  .status { font-size: 12px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 42vw; }
+  button { font: inherit; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink);
+    border-radius: 10px; padding: 9px 14px; font-weight: 600; cursor: pointer; }
+  button.primary { background: var(--s1); border-color: transparent; color: #fff; }
+  button.ghost { background: transparent; }
+  button.danger { color: #ff8a8a; }
+  button:disabled { opacity: .45; cursor: default; }
+  nav.tabs { display: flex; gap: 4px; background: var(--surface); border-radius: 12px; padding: 4px; margin-bottom: 12px; }
+  nav.tabs button { flex: 1; background: transparent; border: 0; color: var(--ink-2); padding: 8px; border-radius: 9px; }
+  nav.tabs button.active { background: var(--surface-2); color: var(--ink); }
+  section.view { display: none; } section.view.active { display: block; }
+
+  .hero { background: var(--surface); border-radius: 16px; padding: 18px 16px 14px; text-align: center; border: 1px solid var(--border); }
+  .hero .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  .hero .value { font-size: 64px; font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; }
+  .hero .sub { font-size: 13px; color: var(--ink-2); margin-top: 4px; }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 10px 8px; }
+  .tile .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .tile .value { font-size: 26px; font-weight: 650; letter-spacing: -0.01em; line-height: 1.15; }
+  .tile .unit { font-size: 12px; color: var(--ink-2); font-weight: 500; margin-left: 2px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px 12px 8px; margin-top: 10px; }
+  .card h2 { font-size: 13px; margin: 0 0 2px; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+  .card h2 .hint { font-weight: 400; color: var(--muted); font-size: 12px; margin-left: auto; }
+  .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  canvas { width: 100%; display: block; touch-action: pan-y; }
+  .tip { position: absolute; pointer-events: none; background: var(--surface-2); border: 1px solid var(--border); color: var(--ink);
+    font-size: 12px; padding: 5px 8px; border-radius: 8px; white-space: nowrap; transform: translate(-50%, -110%); display: none; z-index: 5; }
+  .chartwrap { position: relative; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .row.end { justify-content: flex-end; margin-top: 12px; }
+  .empty { color: var(--muted); font-size: 14px; text-align: center; padding: 36px 12px; }
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .item { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; cursor: pointer; }
+  .item .t { font-weight: 600; } .item .m { color: var(--ink-2); font-size: 13px; }
+  .item .big { font-size: 22px; font-weight: 650; grid-row: span 2; align-self: center; text-align: right; }
+  .notice { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--warning); border-radius: 10px; padding: 10px 12px; font-size: 13px; color: var(--ink-2); margin-bottom: 10px; line-height: 1.4; }
+  .notice b { color: var(--ink); }
+  a { color: var(--s1); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  td { padding: 5px 4px; border-bottom: 1px solid var(--grid); } td:last-child { text-align: right; color: var(--ink); } td:first-child { color: var(--ink-2); }
+  .small { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.4; }
+  .toast { position: fixed; left: 50%; bottom: calc(var(--sab) + 16px); transform: translateX(-50%); background: var(--surface-2); border: 1px solid var(--border);
+    padding: 10px 14px; border-radius: 10px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 10; }
+  .toast.show { opacity: 1; }
+  .rec { color: var(--critical); font-size: 12px; font-weight: 600; }
+  .rec::before { content: "●"; margin-right: 4px; animation: blink 1.2s infinite; }
+  @keyframes blink { 50% { opacity: .2; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Flywheel</h1>
+  <span class="status"><span class="dot" id="dot"></span><span id="statusText">Not connected</span></span>
+  <button id="connectBtn" class="primary">Connect</button>
+</header>
+
+<div id="bleNotice" class="notice" hidden></div>
+
+<nav class="tabs">
+  <button data-view="live" class="active">Live</button>
+  <button data-view="history">History</button>
+  <button data-view="about">About</button>
+</nav>
+
+<!-- ============ LIVE ============ -->
+<section class="view active" id="view-live">
+  <div class="hero">
+    <div class="label">Pace / 500 m</div>
+    <div class="value" id="pace">–:––</div>
+    <div class="sub"><span id="avgPace">avg –:––</span> &nbsp;·&nbsp; <span id="splitState">waiting for data</span></div>
+  </div>
+  <div class="tiles">
+    <div class="tile"><div class="label">Rate</div><div class="value"><span id="spm">–</span><span class="unit">spm</span></div></div>
+    <div class="tile"><div class="label">Power</div><div class="value"><span id="watts">–</span><span class="unit">W</span></div></div>
+    <div class="tile"><div class="label">Distance</div><div class="value"><span id="dist">–</span><span class="unit">m</span></div></div>
+    <div class="tile"><div class="label">Time</div><div class="value" id="time">0:00</div></div>
+    <div class="tile"><div class="label">Heart rate</div><div class="value"><span id="hr">–</span><span class="unit">bpm</span></div></div>
+    <div class="tile"><div class="label">Drag</div><div class="value" id="drag">–</div></div>
+    <div class="tile"><div class="label">Strokes</div><div class="value" id="strokes">0</div></div>
+    <div class="tile"><div class="label">Calories</div><div class="value" id="cal">–</div></div>
+    <div class="tile"><div class="label">Drive : Rec</div><div class="value" id="ratio">–</div></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="swatch" style="background:var(--s1)"></span>Power per stroke <span class="hint" id="pwrHint">last 60 strokes · tap a bar</span></h2>
+    <div class="chartwrap"><canvas id="pwrChart" height="150"></canvas><div class="tip" id="pwrTip"></div></div>
+  </div>
+  <div class="card">
+    <h2><span class="swatch" style="background:var(--s2)"></span>Force curve <span class="hint">this stroke vs. session average</span></h2>
+    <div class="chartwrap"><canvas id="forceChart" height="150"></canvas></div>
+  </div>
+  <div class="card">
+    <h2><span class="swatch" style="background:var(--s3)"></span>Pace over the session <span class="hint">tap to inspect</span></h2>
+    <div class="chartwrap"><canvas id="paceChart" height="150"></canvas><div class="tip" id="paceTip"></div></div>
+  </div>
+
+  <div class="row end">
+    <span id="recState" class="rec" hidden>recording</span>
+    <button id="discardBtn" class="ghost" disabled>Discard</button>
+    <button id="saveBtn" disabled>Finish &amp; save</button>
+  </div>
+</section>
+
+<!-- ============ HISTORY ============ -->
+<section class="view" id="view-history">
+  <div id="historyList" class="list"></div>
+  <div id="historyEmpty" class="empty">No saved sessions yet. Connect, row, then tap <b>Finish &amp; save</b>.</div>
+  <div id="sessionDetail" hidden>
+    <div class="row" style="margin-bottom:8px"><button id="backBtn" class="ghost">← All sessions</button><span style="flex:1"></span>
+      <button id="csvBtn">Export CSV</button><button id="delBtn" class="danger ghost">Delete</button></div>
+    <div class="card"><h2 id="dTitle"></h2><table id="dTable"></table></div>
+    <div class="card"><h2><span class="swatch" style="background:var(--s1)"></span>Power per stroke</h2><div class="chartwrap"><canvas id="dPwr" height="150"></canvas><div class="tip" id="dPwrTip"></div></div></div>
+    <div class="card"><h2><span class="swatch" style="background:var(--s3)"></span>Pace</h2><div class="chartwrap"><canvas id="dPace" height="150"></canvas><div class="tip" id="dPaceTip"></div></div></div>
+    <div class="card"><h2><span class="swatch" style="background:var(--s2)"></span>Average force curve</h2><div class="chartwrap"><canvas id="dForce" height="150"></canvas></div></div>
+  </div>
+</section>
+
+<!-- ============ ABOUT ============ -->
+<section class="view" id="view-about">
+  <div class="card">
+    <h2>How to connect</h2>
+    <div class="small" style="color:var(--ink-2);font-size:14px">
+      <p><b>On the PM5:</b> More Options → Turn Wireless ON. The monitor will say “Connect”. Connect from this app <em>before</em> starting a workout on the PM5, then start rowing — a “Just Row” or any programmed piece works.</p>
+      <p><b>iPhone:</b> Safari can't use Bluetooth, so open this page in the free <b>Bluefy</b> browser (App Store), or install a Web Bluetooth Safari extension on iOS 26+.</p>
+      <p><b>Android / Mac / Windows / ChromeOS:</b> open it in Chrome or Edge. Add it to your home screen for a full-screen app.</p>
+      <p><b>Demo mode:</b> tap <em>Try demo</em> below to drive the app with a simulated PM5.</p>
+    </div>
+    <div class="row"><button id="demoBtn">Try demo</button></div>
+  </div>
+  <div class="card">
+    <h2>Data</h2>
+    <div class="small" style="color:var(--ink-2);font-size:14px">
+      Everything stays on your phone (IndexedDB) — nothing is uploaded. Per-stroke data includes power, drive length and time, recovery time, peak and average handle force (converted from the PM5's lbf to newtons), work per stroke, and the full force curve when the PM5 firmware provides it. CSV export gives you one row per stroke, ready for R or Python.
+    </div>
+  </div>
+  <div class="card"><h2>Device</h2><table id="devTable"><tr><td>Status</td><td>not connected</td></tr></table></div>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { PM5, PM5Simulator, WORKOUT_STATE, STROKE_STATE, ERG_TYPE } from './pm5.js';
+
+// ------------------------------------------------------------- state
+const $ = (id) => document.getElementById(id);
+let erg = null;
+let session = null;        // { startedAt, strokes:[], samples:[], curves:[], last:{} }
+let latest = {};           // merged latest values for the dashboard
+let curveSum = null, curveN = 0;
+
+// ------------------------------------------------------------- formatting
+const fmtPace = (s) => (s == null || !isFinite(s) || s <= 0) ? '–:––' : `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
+const fmtTime = (s) => { s = Math.max(0, Math.round(s)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' : '') + (h ? String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
+const toast = (m) => { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200); };
+
+// ------------------------------------------------------------- tabs
+document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav.tabs button').forEach(x => x.classList.toggle('active', x === b));
+  document.querySelectorAll('section.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + b.dataset.view));
+  if (b.dataset.view === 'history') renderHistory();
+});
+
+// ------------------------------------------------------------- BLE capability notice
+if (!PM5.supported) {
+  const n = $('bleNotice'); n.hidden = false;
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  n.innerHTML = ios
+    ? `<b>This browser can't reach Bluetooth.</b> On iPhone, open this same link in the free <a href="https://apps.apple.com/app/id1492822055" target="_blank" rel="noopener">Bluefy</a> browser, or install a Web Bluetooth Safari extension (iOS 26+). You can still <a href="#" id="demoLink">try the demo</a>.`
+    : `<b>Web Bluetooth isn't available here.</b> Use Chrome or Edge (Android, Windows, macOS, ChromeOS). You can still <a href="#" id="demoLink">try the demo</a>.`;
+  $('demoLink')?.addEventListener('click', (e) => { e.preventDefault(); startDemo(); });
+}
+
+// ------------------------------------------------------------- connect / demo
+$('connectBtn').onclick = async () => {
+  if (erg?.connected) { erg.disconnect(); return; }
+  if (!PM5.supported) { startDemo(); return; }
+  try { await attach(new PM5()); } catch (e) { if (!/cancel/i.test(e.message)) toast(e.message); setStatus(false, 'Not connected'); }
+};
+$('demoBtn').onclick = startDemo;
+function startDemo() { attach(new PM5Simulator()); document.querySelector('nav.tabs button[data-view=live]').click(); }
+
+async function attach(device) {
+  erg = device;
+  setStatus(false, 'Connecting…');
+  erg.on(onMessage);
+  await erg.connect();
+}
+function setStatus(on, text) {
+  $('dot').classList.toggle('on', on); $('statusText').textContent = text;
+  $('connectBtn').textContent = on ? 'Disconnect' : 'Connect';
+  $('connectBtn').classList.toggle('primary', !on);
+}
+
+// ------------------------------------------------------------- message handling
+function onMessage(m) {
+  switch (m.type) {
+    case 'connected':
+      setStatus(true, m.name || 'PM5');
+      $('devTable').innerHTML = Object.entries({ Status: 'connected', Name: m.name, ...m.info }).map(([k, v]) => `<tr><td>${k}</td><td>${v ?? ''}</td></tr>`).join('');
+      newSession(); toast('Connected — start rowing'); break;
+    case 'disconnected':
+      setStatus(false, 'Disconnected'); $('splitState').textContent = 'disconnected';
+      if (session?.strokes.length) toast('Disconnected — your session is still here; tap Finish & save');
+      break;
+    case 'warn': console.warn(m.message); break;
+    case 'status': case 'status1': case 'status2': onStatus(m); break;
+    case 'stroke': onStroke(m); break;
+    case 'stroke2': onStroke2(m); break;
+    case 'force': onForce(m.pts); break;
+    case 'end': toast('Workout finished on PM5 — saving'); saveSession(); break;
+  }
+}
+function newSession() { session = { startedAt: Date.now(), strokes: [], samples: [], curves: [], ergType: null }; latest = {}; curveSum = null; curveN = 0; $('recState').hidden = true; $('saveBtn').disabled = $('discardBtn').disabled = true; drawAll(); }
+
+function onStatus(m) {
+  // a new workout on the PM5 resets elapsed time; treat that as a new session if the old one had strokes
+  if (m.elapsed != null && latest.elapsed != null && m.elapsed < latest.elapsed - 5 && session.strokes.length > 3) { saveSession(); }
+  Object.assign(latest, m);
+  if (m.type === 'status1') {
+    if (session && m.pace && latest.elapsed > 0) {
+      const s = session.samples, last = s[s.length - 1];
+      if (!last || m.elapsed - last.t >= 1) s.push({ t: m.elapsed, pace: m.pace, spm: m.strokeRate, hr: m.heartRate, speed: m.speed });
+    }
+    if (m.ergType != null && session) session.ergType = ERG_TYPE[m.ergType] || m.ergType;
+  }
+  renderDashboard();
+  if (m.type === 'status1' && session.samples.length % 4 === 0) drawPace($('paceChart'), $('paceTip'), session.samples);
+}
+function onStroke(m) {
+  if (!session) return;
+  const prev = session.strokes[session.strokes.length - 1];
+  if (prev && prev.strokeCount === m.strokeCount) { Object.assign(prev, m); return; }
+  session.strokes.push({ ...m, power: null, pace: latest.pace ?? null, spm: latest.strokeRate ?? null, hr: latest.heartRate ?? null, drag: latest.dragFactor ?? null });
+  $('recState').hidden = false; $('saveBtn').disabled = $('discardBtn').disabled = false;
+  $('strokes').textContent = m.strokeCount;
+  $('ratio').textContent = m.driveTime > 0 ? `1 : ${(m.recoveryTime / m.driveTime).toFixed(1)}` : '–';
+}
+function onStroke2(m) {
+  if (!session) return;
+  const s = session.strokes.find(x => x.strokeCount === m.strokeCount) || session.strokes[session.strokes.length - 1];
+  if (s) { s.power = m.power; s.calsPerHour = m.calsPerHour; }
+  $('watts').textContent = m.power;
+  drawPower($('pwrChart'), $('pwrTip'), session.strokes.slice(-60), true);
+}
+function onForce(pts) {
+  if (!session || !pts.length) return;
+  const s = session.strokes[session.strokes.length - 1];
+  if (s) s.curve = pts;
+  // running average on a normalized 32-point grid
+  const r = resample(pts, 32);
+  if (!curveSum) curveSum = r.slice(); else r.forEach((v, i) => curveSum[i] += v);
+  curveN++;
+  drawForce($('forceChart'), pts, curveSum.map(v => v / curveN));
+}
+
+function renderDashboard() {
+  $('pace').textContent = fmtPace(latest.pace);
+  $('avgPace').textContent = 'avg ' + fmtPace(latest.avgPace);
+  $('spm').textContent = latest.strokeRate ?? '–';
+  $('dist').textContent = latest.distance != null ? Math.round(latest.distance) : '–';
+  $('time').textContent = fmtTime(latest.elapsed ?? 0);
+  $('hr').textContent = latest.heartRate ?? '–';
+  $('drag').textContent = latest.dragFactor ?? '–';
+  $('cal').textContent = latest.totalCalories ?? '–';
+  if (latest.workoutState != null) {
+    const ws = WORKOUT_STATE[latest.workoutState] ?? `state ${latest.workoutState}`;
+    const ss = STROKE_STATE[latest.strokeState] ?? '';
+    $('splitState').textContent = latest.workoutState === 1 ? ss.toLowerCase() : ws.toLowerCase();
+  }
+}
+
+// ------------------------------------------------------------- sessions (IndexedDB)
+const db = {
+  open() { return new Promise((res, rej) => { const r = indexedDB.open('flywheel', 1); r.onupgradeneeded = () => r.result.createObjectStore('sessions', { keyPath: 'id' }); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
+  async put(s) { const d = await this.open(); return new Promise((res, rej) => { const t = d.transaction('sessions', 'readwrite'); t.objectStore('sessions').put(s); t.oncomplete = res; t.onerror = () => rej(t.error); }); },
+  async all() { const d = await this.open(); return new Promise((res, rej) => { const r = d.transaction('sessions').objectStore('sessions').getAll(); r.onsuccess = () => res(r.result.sort((a, b) => b.startedAt - a.startedAt)); r.onerror = () => rej(r.error); }); },
+  async del(id) { const d = await this.open(); return new Promise((res, rej) => { const t = d.transaction('sessions', 'readwrite'); t.objectStore('sessions').delete(id); t.oncomplete = res; t.onerror = () => rej(t.error); }); },
+};
+function summarize(s) {
+  const st = s.strokes, n = st.length;
+  const last = st[n - 1] || {};
+  const mean = (arr) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+  const powers = st.map(x => x.power).filter(x => x > 0);
+  return {
+    distance: last.distance ?? 0, elapsed: last.elapsed ?? 0, strokes: n,
+    avgPace: last.distance ? last.elapsed / (last.distance / 500) : null,
+    avgPower: mean(powers), maxPower: powers.length ? Math.max(...powers) : null,
+    avgSpm: mean(st.map(x => x.spm).filter(Boolean)), avgHr: mean(st.map(x => x.hr).filter(Boolean)),
+    avgPeakForce: mean(st.map(x => x.peakForce).filter(Boolean)), avgDriveLength: mean(st.map(x => x.driveLength).filter(Boolean)),
+    drag: last.drag, work: st.reduce((a, x) => a + (x.workPerStroke || 0), 0),
+    consistency: powers.length > 3 ? stddev(powers) / mean(powers) : null,
+  };
+}
+function stddev(a) { const m = a.reduce((x, y) => x + y, 0) / a.length; return Math.sqrt(a.reduce((x, y) => x + (y - m) ** 2, 0) / a.length); }
+async function saveSession() {
+  if (!session || session.strokes.length < 2) { newSession(); return; }
+  const s = { id: String(session.startedAt), ...session, summary: summarize(session), avgCurve: curveSum ? curveSum.map(v => v / curveN) : null };
+  await db.put(s);
+  toast(`Saved: ${Math.round(s.summary.distance)} m in ${fmtTime(s.summary.elapsed)}`);
+  newSession();
+}
+$('saveBtn').onclick = saveSession;
+$('discardBtn').onclick = () => { if (confirm('Discard the current session data?')) newSession(); };
+
+let openSession = null;
+async function renderHistory() {
+  const all = await db.all();
+  $('historyEmpty').hidden = all.length > 0 || !!openSession;
+  $('historyList').hidden = !!openSession; $('sessionDetail').hidden = !openSession;
+  if (openSession) return renderDetail(openSession);
+  $('historyList').innerHTML = all.map(s => {
+    const d = new Date(s.startedAt), m = s.summary;
+    return `<div class="item" data-id="${s.id}">
+      <div class="t">${d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} · ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</div>
+      <div class="big">${Math.round(m.distance)} m</div>
+      <div class="m">${fmtTime(m.elapsed)} · ${fmtPace(m.avgPace)} /500m · ${m.avgPower ? Math.round(m.avgPower) + ' W' : ''} · ${m.strokes} strokes</div>
+    </div>`;
+  }).join('');
+  $('historyList').querySelectorAll('.item').forEach(el => el.onclick = () => { openSession = all.find(s => s.id === el.dataset.id); renderHistory(); });
+}
+function renderDetail(s) {
+  const m = s.summary, d = new Date(s.startedAt);
+  $('dTitle').textContent = d.toLocaleString();
+  const rows = [
+    ['Distance', `${Math.round(m.distance)} m`], ['Time', fmtTime(m.elapsed)], ['Average pace', `${fmtPace(m.avgPace)} /500m`],
+    ['Average power', m.avgPower ? `${Math.round(m.avgPower)} W` : '–'], ['Peak power', m.maxPower ? `${m.maxPower} W` : '–'],
+    ['Stroke rate', m.avgSpm ? `${m.avgSpm.toFixed(1)} spm` : '–'], ['Strokes', m.strokes],
+    ['Power consistency (CV)', m.consistency != null ? `${(m.consistency * 100).toFixed(1)} %` : '–'],
+    ['Avg peak handle force', m.avgPeakForce ? `${Math.round(m.avgPeakForce)} N` : '–'], ['Avg drive length', m.avgDriveLength ? `${m.avgDriveLength.toFixed(2)} m` : '–'],
+    ['Total work', `${(m.work / 1000).toFixed(1)} kJ`], ['Heart rate', m.avgHr ? `${Math.round(m.avgHr)} bpm` : '–'], ['Drag factor', m.drag ?? '–'], ['Machine', s.ergType ?? '–'],
+  ];
+  $('dTable').innerHTML = rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+  drawPower($('dPwr'), $('dPwrTip'), s.strokes, false);
+  drawPace($('dPace'), $('dPaceTip'), s.samples);
+  drawForce($('dForce'), null, s.avgCurve);
+}
+$('backBtn').onclick = () => { openSession = null; renderHistory(); };
+$('delBtn').onclick = async () => { if (openSession && confirm('Delete this session?')) { await db.del(openSession.id); openSession = null; renderHistory(); } };
+$('csvBtn').onclick = () => {
+  const s = openSession; if (!s) return;
+  const cols = ['strokeCount', 'elapsed', 'distance', 'power', 'pace', 'spm', 'hr', 'driveLength', 'driveTime', 'recoveryTime', 'strokeDistance', 'peakForce', 'avgForce', 'workPerStroke', 'drag'];
+  const lines = [cols.join(',') + ',forceCurveN'];
+  for (const x of s.strokes) lines.push(cols.map(c => x[c] == null ? '' : (typeof x[c] === 'number' ? +x[c].toFixed(3) : x[c])).join(',') + ',' + (x.curve ? '"' + x.curve.map(v => Math.round(v)).join(';') + '"' : ''));
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `flywheel_${new Date(s.startedAt).toISOString().slice(0, 16).replace(/[:T]/g, '-')}.csv`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+};
+
+// ------------------------------------------------------------- charts (canvas, no deps)
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+function setup(cv) {
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 320;
+  const h = cv.dataset.h ? +cv.dataset.h : (cv.dataset.h = cv.height, cv.height);
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.height = h + 'px'; }
+  const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h); ctx.font = '11px system-ui, -apple-system, sans-serif';
+  return { ctx, w, h, pad: { l: 44, r: 8, t: 10, b: 20 } };
+}
+function grid(ctx, w, h, pad, yTicks, fmt) {
+  ctx.strokeStyle = css('--grid'); ctx.fillStyle = css('--muted'); ctx.lineWidth = 1; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (const [y, v] of yTicks) { ctx.beginPath(); ctx.moveTo(pad.l, y + .5); ctx.lineTo(w - pad.r, y + .5); ctx.stroke(); ctx.fillText(fmt(v), pad.l - 6, y); }
+  ctx.strokeStyle = css('--axis'); ctx.beginPath(); ctx.moveTo(pad.l, h - pad.b + .5); ctx.lineTo(w - pad.r, h - pad.b + .5); ctx.stroke();
+}
+function niceTicks(lo, hi, n = 4) { const span = hi - lo || 1, step0 = span / n, p = 10 ** Math.floor(Math.log10(step0)), step = [1, 2, 2.5, 5, 10].map(x => x * p).find(x => x >= step0); const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(v); return out; }
+function emptyMsg(ctx, w, h, msg) { ctx.fillStyle = css('--muted'); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '13px system-ui, -apple-system, sans-serif'; ctx.fillText(msg, w / 2, h / 2); }
+function roundTop(ctx, x, y, w, h, r) { r = Math.min(r, w / 2, Math.abs(h)); ctx.beginPath(); ctx.moveTo(x, y + h); ctx.lineTo(x, y + r); ctx.arcTo(x, y, x + r, y, r); ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y, x + w, y + r, r); ctx.lineTo(x + w, y + h); ctx.closePath(); ctx.fill(); }
+
+function drawPower(cv, tip, strokes, live) {
+  const { ctx, w, h, pad } = setup(cv);
+  const data = strokes.filter(s => s.power > 0);
+  if (!data.length) return emptyMsg(ctx, w, h, live ? 'Stroke power appears here once you start rowing' : 'No stroke data');
+  const max = Math.max(...data.map(s => s.power)) * 1.1, ticks = niceTicks(0, max);
+  const Y = (v) => h - pad.b - (v / Math.max(ticks[ticks.length - 1] || 0, max)) * (h - pad.t - pad.b);
+  grid(ctx, w, h, pad, ticks.map(v => [Y(v), v]), v => v + '');
+  const n = data.length, slot = (w - pad.l - pad.r) / n, bw = Math.max(1, slot - 2);
+  ctx.fillStyle = css('--s1');
+  data.forEach((s, i) => roundTop(ctx, pad.l + i * slot + 1, Y(s.power), bw, h - pad.b - Y(s.power), 4));
+  // mean line + direct label on the max
+  const mean = data.reduce((a, s) => a + s.power, 0) / n;
+  ctx.strokeStyle = css('--ink-2'); ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(pad.l, Y(mean) + .5); ctx.lineTo(w - pad.r, Y(mean) + .5); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = css('--ink-2'); ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.fillText(`mean ${Math.round(mean)} W`, w - pad.r - 2, Y(mean) - 2);
+  hover(cv, tip, (px) => { const i = Math.floor((px - pad.l) / slot); if (i < 0 || i >= n) return null; const s = data[i]; return { x: pad.l + i * slot + slot / 2, y: Y(s.power), text: `#${s.strokeCount} · ${s.power} W · ${fmtPace(s.pace)} · ${s.spm ?? '–'} spm` }; });
+}
+function drawPace(cv, tip, samples) {
+  const { ctx, w, h, pad } = setup(cv);
+  const d = samples.filter(s => s.pace > 0);
+  if (d.length < 2) return emptyMsg(ctx, w, h, 'Pace trend appears after a few seconds of rowing');
+  const paces = d.map(s => s.pace), lo = Math.min(...paces), hi = Math.max(...paces), m = Math.max(4, (hi - lo) * 0.15);
+  const ticks = niceTicks(lo - m, hi + m, 3), ymin = ticks[0], ymax = ticks[ticks.length - 1];
+  const t0 = d[0].t, t1 = d[d.length - 1].t;
+  const X = (t) => pad.l + (t - t0) / ((t1 - t0) || 1) * (w - pad.l - pad.r);
+  const Y = (p) => pad.t + (p - ymin) / ((ymax - ymin) || 1) * (h - pad.t - pad.b);   // faster pace (smaller) at top
+  grid(ctx, w, h, pad, ticks.map(v => [Y(v), v]), v => fmtPace(v).replace(/\.\d$/, ''));
+  ctx.fillStyle = css('--muted'); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (const f of [0, .5, 1]) ctx.fillText(fmtTime(t0 + f * (t1 - t0)), X(t0 + f * (t1 - t0)), h - pad.b + 4);
+  ctx.strokeStyle = css('--s3'); ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.beginPath();
+  d.forEach((s, i) => i ? ctx.lineTo(X(s.t), Y(s.pace)) : ctx.moveTo(X(s.t), Y(s.pace))); ctx.stroke();
+  hover(cv, tip, (px) => { let best = d[0]; for (const s of d) if (Math.abs(X(s.t) - px) < Math.abs(X(best.t) - px)) best = s; return { x: X(best.t), y: Y(best.pace), text: `${fmtTime(best.t)} · ${fmtPace(best.pace)} /500m · ${best.spm ?? '–'} spm${best.hr ? ' · ' + best.hr + ' bpm' : ''}` }; });
+}
+function drawForce(cv, pts, avg) {
+  const { ctx, w, h, pad } = setup(cv);
+  if (!pts && !avg) return emptyMsg(ctx, w, h, 'Force curve needs PM5 firmware that broadcasts it');
+  const all = [...(pts || []), ...(avg || [])], max = Math.max(...all) * 1.1 || 1, ticks = niceTicks(0, max, 3);
+  const top = Math.max(ticks[ticks.length - 1] || 0, max);
+  const Y = (v) => h - pad.b - v / top * (h - pad.t - pad.b);
+  grid(ctx, w, h, pad, ticks.map(v => [Y(v), v]), v => v + ' N');
+  ctx.fillStyle = css('--muted'); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText('catch → finish', (pad.l + w - pad.r) / 2, h - pad.b + 4);
+  const line = (arr, color, width, dash) => { const X = (i) => pad.l + i / (arr.length - 1) * (w - pad.l - pad.r); ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash); ctx.lineJoin = 'round'; ctx.beginPath(); arr.forEach((v, i) => i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v))); ctx.stroke(); ctx.setLineDash([]); };
+  if (avg) line(avg, css('--ink-2'), 1.5, [4, 3]);
+  if (pts) line(pts, css('--s2'), 2, []);
+  if (pts) { const pk = Math.max(...pts), i = pts.indexOf(pk); ctx.fillStyle = css('--ink'); ctx.textAlign = i > pts.length / 2 ? 'right' : 'left'; ctx.textBaseline = 'bottom'; ctx.fillText(`peak ${Math.round(pk)} N`, pad.l + i / (pts.length - 1) * (w - pad.l - pad.r) + (i > pts.length / 2 ? -6 : 6), Y(pk) - 2); }
+  if (avg) { ctx.fillStyle = css('--ink-2'); ctx.textAlign = 'right'; ctx.textBaseline = 'top'; ctx.fillText('– – avg', w - pad.r - 2, pad.t); }
+}
+function resample(pts, n) { const out = []; for (let i = 0; i < n; i++) { const x = i / (n - 1) * (pts.length - 1), a = Math.floor(x), b = Math.min(pts.length - 1, a + 1); out.push(pts[a] + (pts[b] - pts[a]) * (x - a)); } return out; }
+function hover(cv, tip, lookup) {
+  cv._lookup = lookup;
+  if (cv._bound) return; cv._bound = true;
+  const show = (e) => { const r = cv.getBoundingClientRect(), p = e.touches ? e.touches[0] : e; const hit = cv._lookup?.(p.clientX - r.left); if (!hit) { tip.style.display = 'none'; return; } tip.textContent = hit.text; tip.style.display = 'block'; tip.style.left = Math.max(70, Math.min(cv.clientWidth - 70, hit.x)) + 'px'; tip.style.top = hit.y + 'px'; };
+  cv.addEventListener('mousemove', show); cv.addEventListener('touchstart', show, { passive: true }); cv.addEventListener('touchmove', show, { passive: true });
+  cv.addEventListener('mouseleave', () => tip.style.display = 'none'); cv.addEventListener('touchend', () => setTimeout(() => tip.style.display = 'none', 1500));
+}
+function drawAll() {
+  const st = session?.strokes ?? [], last = st[st.length - 1];
+  drawPower($('pwrChart'), $('pwrTip'), st.slice(-60), true);
+  drawForce($('forceChart'), last?.curve ?? null, curveSum ? curveSum.map(v => v / curveN) : null);
+  drawPace($('paceChart'), $('paceTip'), session?.samples ?? []);
+}
+window.addEventListener('resize', () => { drawAll(); if (openSession) renderDetail(openSession); });
+drawAll();
+
+// ------------------------------------------------------------- service worker (offline)
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+// keep the screen on while connected (Android Chrome; iOS ignores)
+setInterval(async () => { try { if (erg?.connected && !window._wl && 'wakeLock' in navigator) window._wl = await navigator.wakeLock.request('screen'); } catch {} }, 5000);
+</script>
+</body>
+</html>
