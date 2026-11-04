@@ -1,5 +1,5 @@
 // Offline cache. Bump CACHE on every deploy so phones pick up the new version.
-const CACHE = 'flywheel-v8';
+const CACHE = 'flywheel-v9';
 const ASSETS = [
   './', './index.html', './app.js', './manifest.json', './icon.svg', './icon-180.png', './icon-192.png', './icon-512.png',
   './core/prepaint.js', './core/ui.css', './core/ui.js', './core/theme.js', './core/format.js', './core/pm5.js', './core/session.js', './core/store.js', './core/charts.js',
@@ -9,7 +9,9 @@ const ASSETS = [
   './vendor/fonts/ibm-plex-sans-latin-400-normal.woff2', './vendor/fonts/ibm-plex-sans-latin-500-normal.woff2', './vendor/fonts/ibm-plex-sans-latin-600-normal.woff2',
   './vendor/fonts/ibm-plex-mono-latin-400-normal.woff2', './vendor/fonts/ibm-plex-mono-latin-500-normal.woff2',
 ];
-self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
+// Install: download every asset fresh from the server (bypass the browser's HTTP cache, which GitHub Pages
+// sets to 10 minutes) so a new version can never be built from stale copies.
+self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
@@ -20,5 +22,6 @@ self.addEventListener('fetch', (e) => {
     return;
   }
   // app code: network first so updates land, cache when offline
-  e.respondWith(fetch(e.request).then((r) => { const copy = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); return r; }).catch(() => caches.match(e.request)));
+  // app code: network first, revalidated with the server (cheap 304 when unchanged), cache when offline
+  e.respondWith(fetch(e.request, { cache: 'no-cache' }).then((r) => { if (r.ok) { const copy = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); } return r; }).catch(() => caches.match(e.request)));
 });

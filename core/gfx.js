@@ -200,3 +200,24 @@ export function createParticles({ max = 300, texture, color = 0xffffff, blending
   }
   return { points, emit, update };
 }
+
+/**
+ * Detail layer: a small tiling texture (R = albedo modulation around 0.5, G = height) repeated many times over
+ * the base UVs and blended into colour and bump. Gives close-up crispness without a huge base texture.
+ * Chains with any existing onBeforeCompile (e.g. groundAO).
+ */
+export function detailLayer(material, tex, repeat = [10, 5], { albedo = 0.55, bump = 0.6 } = {}) {
+  const prev = material.onBeforeCompile;
+  const u = { uDetail: { value: tex }, uDetailRep: { value: new THREE.Vector2(...repeat) }, uDetailAlb: { value: albedo }, uDetailBump: { value: bump } };
+  material.onBeforeCompile = (sh, r) => {
+    if (prev) prev(sh, r);
+    Object.assign(sh.uniforms, u);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform sampler2D uDetail; uniform vec2 uDetailRep; uniform float uDetailAlb, uDetailBump;')
+      .replace('#include <map_fragment>', '#include <map_fragment>\n{ vec4 dt = texture2D(uDetail, vMapUv * uDetailRep); diffuseColor.rgb *= mix(1.0, dt.r * 2.0, uDetailAlb); }')
+      .replace('#include <bumpmap_pars_fragment>', THREE.ShaderChunk.bumpmap_pars_fragment.replace(/texture2D\( bumpMap, ([^)]*?) \)\.x/g,
+        '( texture2D( bumpMap, $1 ).x + uDetailBump * ( texture2D( uDetail, ( $1 ) * uDetailRep ).g - 0.5 ) )'));
+  };
+  material.customProgramCacheKey = () => 'groundAO+detail';
+  return u;
+}

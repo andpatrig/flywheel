@@ -13,6 +13,6 @@ export default `
           <p>Sessions stay on this device (IndexedDB) — nothing is uploaded. Each saved session opens a full analysis in History and exports as JSON: one record per stroke with its force curve, plus the pace / rate / heart-rate time series.</p>
         </div>
         <div class="card"><h2>Device</h2><table id="devTable"><tr><td>Status</td><td>not connected</td></tr></table></div>
-        <p style="color:var(--muted);font-size:0.8rem;text-align:center;margin-top:16px">Flywheel · charts by Plotly.js (MIT) · not affiliated with Concept2</p>
+        <p style="color:var(--muted);font-size:0.8rem;text-align:center;margin-top:16px">Flywheel <span id="appVer"></span> · charts by Plotly.js, 3D by three.js (MIT) · type: IBM Plex (OFL) · not affiliated with Concept2</p>
       </div>
 `;

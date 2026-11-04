@@ -8,8 +8,9 @@ import { fmtInt, fmtTime } from './core/format.js';
 import * as live from './screens/live.js';
 import * as history from './screens/history.js';
 import * as about from './screens/about.js';
+import * as stones from './screens/stones/screen.js';
 
-const SCREENS = { live, history, about };
+const SCREENS = { live, stones, history, about };
 const app = { startDemo, show: showScreen };
 let active = null;
 
@@ -31,7 +32,7 @@ $('connectBtn').onclick = async () => {
   if (!engine.supported) { startDemo(); return; }
   try { await engine.connect(); } catch (e) { if (!/cancel/i.test(e.message)) toast(e.message); }
 };
-function startDemo() { engine.demo(); showScreen('live'); }
+function startDemo({ stay = false } = {}) { engine.demo(); if (!stay) showScreen('live'); }
 engine.on('conn', ({ state, name }) => {
   const btn = $('connectBtn'), norm = btn.querySelector('.norm');
   btn.classList.remove('armed');
@@ -79,7 +80,18 @@ onThemeChange(() => {
 // ---------- boot
 applyPrefs();
 showScreen('live');
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+// Service worker: check for a new version on launch and whenever the app comes back to the foreground;
+// when a new version takes over, reload once so the new code is what's running.
+export const APP_VERSION = 'v9';
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+  }).catch(() => {});
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloaded && !engine.recording) { reloaded = true; location.reload(); } });
+}
+{ const v = document.getElementById('appVer'); if (v) v.textContent = APP_VERSION; }
 // keep the screen awake while connected (Android Chrome; iOS ignores)
 setInterval(async () => { try { if (engine.connected && !window._wl && 'wakeLock' in navigator) { window._wl = await navigator.wakeLock.request('screen'); window._wl.onrelease = () => { window._wl = null; }; } } catch {} }, 5000);
 // console / test hook

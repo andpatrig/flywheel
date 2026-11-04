@@ -49,7 +49,7 @@
 <div id="stage"></div>
 <div class="hud">
   <div class="top">
-    <div><div class="eyebrow">Atlas stones</div><div class="title">Stone 1 <span>of 5 · 100 kg</span></div></div>
+    <div><div class="eyebrow">Atlas stones</div><div class="title">Stone 1 <span>of 5 · 180 kg</span></div></div>
     <div class="read"><div class="big num">0.74<span class="u">m</span></div><div class="sub num">of 1.30 m · <span class="gain">+0.37 m</span><span class="wide-only"> last stroke</span></div></div>
   </div>
   <div></div>
@@ -66,7 +66,7 @@
 </div>
 <script type="module">
 import { createRenderer, roomEnvironment } from '../core/gfx.js';
-import { createStage, PLATFORM_H } from '../screens/stones/stage.js';
+import { createStage, PLATFORM_H, STONE_MASSES } from '../screens/stones/stage.js';
 import { createStonesGame } from '../screens/stones/game.js';
 import { engine } from '../core/session.js';
 
@@ -84,10 +84,10 @@ const $ = (s) => document.querySelector(s);
 const fmtT = (t) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
 function hud() {
   const st = game.state();
-  $('.title').innerHTML = st.finished ? 'All five <span>· 700 kg loaded</span>' : `Stone ${st.index + 1} <span>of 5 · ${st.mass} kg</span>`;
+  $('.title').innerHTML = st.finished ? `All five <span>· ${STONE_MASSES.reduce((a, b) => a + b, 0).toLocaleString()} kg loaded</span>` : `Stone ${st.index + 1} <span>of 5 · ${st.mass} kg</span>`;
   $('.big').innerHTML = `${st.height.toFixed(2)}<span class="u">m</span>`;
   $('.read .sub').innerHTML = `of ${PLATFORM_H.toFixed(2)} m · <span class="gain">+${st.lastGain.toFixed(2)} m</span><span class="wide-only"> last stroke</span>`;
-  document.querySelectorAll('.stonebar .s').forEach((el, i) => { el.querySelector('.fill').style.width = (st.progress[i] * 100).toFixed(0) + '%'; el.classList.toggle('cur', i === st.index); });
+  document.querySelectorAll('.stonebar .s').forEach((el, i) => { el.querySelector('.kg').textContent = STONE_MASSES[i]; el.querySelector('.fill').style.width = (st.progress[i] * 100).toFixed(0) + '%'; el.classList.toggle('cur', i === st.index); });
   $('.gstat .v').textContent = fmtT(st.time);
   $('.gstat .sub').textContent = `${(st.total / 1000).toFixed(1)} kJ rowed${st.bank > 30 ? ` · ${Math.round(st.bank)} J banked` : ''}`;
 }
