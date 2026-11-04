@@ -1,24 +1,47 @@
 # Flywheel — Concept2 PM5 live data in your browser
 
 A single-page web app that connects to a Concept2 PM5 over Bluetooth LE and shows
-live pace, stroke rate, power, per-stroke force curves, and keeps a session history on
-the phone with JSON export. No server, no account, no dependencies — five static files.
+live pace, stroke rate, power, per-stroke force curves and a stroke-by-stroke force heatmap,
+then keeps a full analysis of every session on the phone with JSON export. No server, no account.
 
 ## Files
 
 | File | Purpose |
 |---|---|
-| `index.html` | The whole UI (dashboard, charts, history, export) |
+| `index.html` | The whole app: live dashboard, history analysis, settings |
 | `pm5.js` | PM5 Bluetooth protocol: UUIDs, byte parsers, `PM5` client, `PM5Simulator` demo |
-| `manifest.json` | PWA manifest (home-screen install on Android Chrome) |
-| `sw.js` | Service worker — caches the app so it opens offline |
-| `icon.svg` | App icon |
+| `vendor/plotly-4.2.0.min.js` | Plotly.js (full build, MIT) — vendored so the app works offline and needs no CDN |
+| `manifest.json`, `icon*.png`, `icon.svg` | PWA install metadata and icons |
+| `sw.js` | Service worker — caches everything so the app opens offline |
+
+## Live dashboard
+
+**Phone (one display at a time):** tap anywhere on the display, or the *Display* button,
+to cycle **Metrics → Power → Force → Pace → Stroke map**. *Units* switches the big number
+between pace, watts and cal/hr — the same idea as the PM5's Display and Units buttons.
+
+**TV / laptop / iPad landscape (dashboard):** all five displays at once. Auto-selected on
+landscape screens ≥ 960 px wide; force it in Settings → Layout. AirPlay the phone to a TV.
+
+**Stroke map** is a heatmap of every stroke's force curve stacked over time (catch → finish
+left to right, newest stroke on top), with dots marking peak-force timing. Technique drift
+and fatigue show up as the band bending or fading.
+
+**Settings:** light / dark / auto theme, 8 accent colors (tuned separately for each theme so
+they stay legible on white), layout override, discard session. Preferences stay on the device.
+
+## Session analysis (History)
+
+Each saved session opens a post-workout report: pace, rate and heart rate on aligned
+subplots; splits; power distribution with mean ± 1σ and coefficient of variation; force
+curve mean ± 1σ with first-quarter vs. last-quarter overlays; rate vs. power colored by
+elapsed time; and the full-session stroke map.
 
 ## Hosting (5 minutes, free)
 
 Web Bluetooth requires HTTPS. GitHub Pages is the easiest:
 
-1. Create a repo (e.g. `flywheel`), add these five files to the root, push.
+1. Create a repo (e.g. `flywheel`), add these files (including `vendor/`) to the root, push.
 2. Repo **Settings → Pages → Source: Deploy from a branch → main / (root)**.
 3. Your app is at `https://<you>.github.io/flywheel/`. Share that link.
 
