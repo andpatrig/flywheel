@@ -82,7 +82,7 @@ applyPrefs();
 showScreen('live');
 // Service worker: check for a new version on launch and whenever the app comes back to the foreground;
 // when a new version takes over, reload once so the new code is what's running.
-export const APP_VERSION = 'v10';
+export const APP_VERSION = 'v11';
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   const hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {

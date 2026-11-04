@@ -3,7 +3,7 @@
 export const ACCENTS = window.FW_ACCENTS;   // defined by core/prepaint.js
 
 const KEY = 'flywheel.prefs';
-const DEFAULTS = { theme: 'system', accent: 'cyan', layout: 'auto', panel: 'metrics', units: 'pace', noticeDismissed: false };
+const DEFAULTS = { theme: 'system', accent: 'cyan', layout: 'auto', panel: 'metrics', units: 'pace', noticeDismissed: false, sound: true };
 export const prefs = (() => { try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return { ...DEFAULTS }; } })();
 export const savePrefs = () => { try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch {} };
 

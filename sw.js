@@ -1,10 +1,10 @@
 // Offline cache. Bump CACHE on every deploy so phones pick up the new version.
-const CACHE = 'flywheel-v10';
+const CACHE = 'flywheel-v11';
 const ASSETS = [
   './', './index.html', './app.js', './manifest.json', './icon.svg', './icon-180.png', './icon-192.png', './icon-512.png',
   './core/prepaint.js', './core/ui.css', './core/ui.js', './core/theme.js', './core/format.js', './core/pm5.js', './core/session.js', './core/store.js', './core/charts.js',
   './screens/live.js', './screens/live.html.js', './screens/history.js', './screens/history.html.js', './screens/about.js', './screens/about.html.js',
-  './core/gfx.js', './screens/stones/screen.js', './screens/stones/stage.js', './screens/stones/game.js',
+  './core/gfx.js', './screens/stones/screen.js', './screens/stones/stage.js', './screens/stones/game.js', './screens/stones/audio.js',
   './vendor/plotly-4.2.0.min.js', './vendor/three-0.187.0.bundle.min.js',
   './vendor/fonts/ibm-plex-sans-latin-400-normal.woff2', './vendor/fonts/ibm-plex-sans-latin-500-normal.woff2', './vendor/fonts/ibm-plex-sans-latin-600-normal.woff2',
   './vendor/fonts/ibm-plex-mono-latin-400-normal.woff2', './vendor/fonts/ibm-plex-mono-latin-500-normal.woff2',
