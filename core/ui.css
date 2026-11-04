@@ -195,3 +195,17 @@ dialog h3 { margin: 0 0 4px; font-size: 1.05rem; }
 .toast { position: fixed; left: 50%; bottom: calc(var(--sab) + 84px); transform: translateX(-50%); background: var(--surface-2); color: var(--ink); border: 1px solid var(--border);
   padding: 10px 14px; border-radius: var(--r-sm); font-size: 0.85rem; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 20; max-width: 90vw; }
 .toast.show { opacity: 1; }
+
+/* short screens (a phone in landscape): compact the chrome so the chart gets the height */
+@media (max-height: 520px) {
+  .app { gap: 6px; padding-top: calc(var(--sat) + 4px); padding-bottom: calc(var(--sab) + 4px); }
+  header.bar { min-height: 34px; }
+  .panel { padding: 0.5rem 0.75rem 0.25rem; }
+  .ph { padding: 0 0.2rem 0.1rem; }
+  .ph .ps { display: none; }
+  .controls { margin-top: 6px; }
+  .ctl { height: 40px; flex-direction: row; align-items: baseline; justify-content: flex-start; gap: 8px; }
+  .ctl .v { font-size: 0.92rem; }
+  .notice { display: none; }
+  .btn.primary, #connectBtn { padding-top: 4px; padding-bottom: 4px; }
+}

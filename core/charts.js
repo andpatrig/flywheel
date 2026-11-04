@@ -286,14 +286,13 @@ function draw(el, fig, interactive) {
   return true;
 }
 
-// Aspect-ratio limits (height / width): a chart stops growing at its limit and is centered,
-// leaving the rest as margin — never stretched to fill whatever box it lands in.
-export const RATIO = { power: [0.42, 0.72], force: [0.5, 0.9], pace: [0.42, 0.72], map: [0.6, 1.3] };
-export function fit(el, [rMin, rMax]) {
+// Aspect-ratio guards (height / width): a chart fills its panel on any normal screen — a phone in
+// landscape, a 16:9 TV — and is only held back and centered when the box is an absurd shape.
+export const RATIO = { power: [0.2, 1.4], force: [0.2, 1.4], pace: [0.2, 1.4], map: [0.3, 1.6] };
+export function fit(el, [, rMax]) {
   const W = el.clientWidth, H = el.clientHeight;
-  let w = W, h = Math.min(H, W * rMax);
-  if (h < w * rMin) w = Math.min(W, h / rMin);
-  return { w: Math.floor(w), h: Math.floor(h) };
+  // width is always the full panel; height is the full panel unless the box is taller than a chart should be
+  return { w: Math.floor(W), h: Math.floor(Math.min(H, W * rMax)) };
 }
 
 export { T, hexA, mix, seqScale, powerFig, forceFig, paceFig, mapFig, trendFig, splitsFig, histFig, scatterFig, forceBandFig, draw };

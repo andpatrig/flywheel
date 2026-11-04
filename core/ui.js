@@ -1,11 +1,11 @@
 // core/ui.js — tiny DOM helpers shared by the shell and screens.
 export const $ = (id) => document.getElementById(id);
 
-export function toast(msg) {
+export function toast(msg, ms = 2400) {
   let t = $('toast');
   if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); }
   t.textContent = msg; t.classList.add('show');
-  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2400);
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), ms);
 }
 
 /** Destructive or session-ending actions need a second tap within 3 s (no browser dialogs mid-row). */

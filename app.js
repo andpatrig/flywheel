@@ -82,7 +82,7 @@ applyPrefs();
 showScreen('live');
 // Service worker: check for a new version on launch and whenever the app comes back to the foreground;
 // when a new version takes over, reload once so the new code is what's running.
-export const APP_VERSION = 'v9';
+export const APP_VERSION = 'v10';
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   const hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
@@ -92,6 +92,11 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloaded && !engine.recording) { reloaded = true; location.reload(); } });
 }
 { const v = document.getElementById('appVer'); if (v) v.textContent = APP_VERSION; }
+// Any uncaught error is shown briefly on screen — on a phone there is no console to read.
+const showErr = (what, e) => { const m = String(e?.message || e?.reason?.message || e?.reason || e || '').slice(0, 160); if (m) toast(`${what}: ${m}`, 6000); console.error(what, e); };
+window.addEventListener('error', (e) => showErr('Error', e.error || e.message));
+window.addEventListener('unhandledrejection', (e) => showErr('Error', e));
+{ const d = document.getElementById('diag'); if (d) { let gl = 'no'; try { gl = document.createElement('canvas').getContext('webgl2') ? 'yes' : 'no'; } catch {} d.textContent = `${APP_VERSION} · WebGL2 ${gl} · SW ${'serviceWorker' in navigator ? (navigator.serviceWorker.controller ? 'active' : 'none') : 'unsupported'} · ${navigator.userAgent.replace(/^Mozilla\/5\.0 /, '')}`; } }
 // keep the screen awake while connected (Android Chrome; iOS ignores)
 setInterval(async () => { try { if (engine.connected && !window._wl && 'wakeLock' in navigator) { window._wl = await navigator.wakeLock.request('screen'); window._wl.onrelease = () => { window._wl = null; }; } } catch {} }, 5000);
 // console / test hook

@@ -8,9 +8,9 @@ let mods = null;
 
 const css = `
 #view-stones { position: relative; }
-#view-stones .st-host { position: absolute; inset: 0; border-radius: var(--radius); overflow: hidden; background: #060708; }
+#view-stones .st-host { position: absolute; top: 0; right: 0; bottom: 0; left: 0; border-radius: var(--radius); overflow: hidden; background: #060708; }
 #view-stones .st-host canvas { display: block; }
-#view-stones .st-hud { position: absolute; inset: 0; pointer-events: none; color: #f2f2f0; padding: 1.1rem 1.25rem; display: grid; grid-template-rows: auto 1fr auto;
+#view-stones .st-hud { position: absolute; top: 0; right: 0; bottom: 0; left: 0; pointer-events: none; color: #f2f2f0; padding: 1.1rem 1.25rem; display: grid; grid-template-rows: auto 1fr auto;
   text-shadow: 0 1px 12px rgba(0,0,0,0.45); border-radius: var(--radius); overflow: hidden; isolation: isolate; }
 #view-stones .st-hud::before, #view-stones .st-hud::after { content: ''; position: absolute; left: 0; right: 0; pointer-events: none; z-index: -1; }
 #view-stones .st-hud::before { top: 0; height: 8rem; background: linear-gradient(rgba(4,5,6,0.62), rgba(4,5,6,0)); }
@@ -39,7 +39,9 @@ const css = `
 #view-stones .st-center { align-self: center; justify-self: center; text-align: center; pointer-events: auto; }
 #view-stones .st-center .msg { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.4rem; }
 #view-stones .st-center .hint { color: rgba(242,242,240,0.65); font-size: 0.88rem; margin-bottom: 1rem; }
-#view-stones .st-loading { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(242,242,240,0.6); font-size: 0.9rem; }
+#view-stones .st-loading { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: grid; place-items: center; color: rgba(242,242,240,0.6); font-size: 0.9rem; }
+#view-stones .st-fail { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: grid; place-items: center; padding: 1.5rem; text-align: center; color: #f2f2f0; }
+#view-stones .st-fail .msg { font-weight: 600; margin-bottom: 0.5rem; } #view-stones .st-fail .why { color: rgba(242,242,240,0.65); font-size: 0.85rem; font-family: var(--mono); word-break: break-word; max-width: 36rem; }
 @media (max-width: 560px) { #view-stones .st-hud { padding: 0.9rem 1rem; } #view-stones .st-title { font-size: 1rem; } #view-stones .st-bar .s { width: 1.8rem; } #view-stones .st-bar { gap: 4px; } #view-stones .st-stat .v { font-size: 1.25rem; } #view-stones .wide-only { display: none; } }
 `;
 
@@ -71,8 +73,19 @@ export function mount(container, app) {
   engine.on('conn', () => updateCenter());
 }
 
+function fail(err, where) {
+  console.error('[stones]', where, err);
+  cancelAnimationFrame(raf); game = null;
+  host.innerHTML = `<div class="st-fail"><div><div class="msg">The arena couldn't start</div><div class="why">${where}: ${String(err?.message || err).slice(0, 240)}</div></div></div>`;
+  hudEl.style.display = 'none';
+}
+function hasWebGL2() { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2')); } catch { return false; } }
 async function build() {
   built = true;
+  try { await buildInner(); } catch (e) { fail(e, 'build'); }
+}
+async function buildInner() {
+  if (!hasWebGL2()) throw new Error('this browser has no WebGL 2 (needed for the 3D arena)');
   mods = await Promise.all([import('../../core/gfx.js'), import('./stage.js'), import('./game.js')]);
   const [{ createRenderer, roomEnvironment }, stageMod] = mods;
   await new Promise((r) => setTimeout(r, 30));                                    // let "Building…" paint first
@@ -81,6 +94,9 @@ async function build() {
   const accent = (window.FW_ACCENTS[p.accent] || window.FW_ACCENTS.cyan).d;
   el.style.setProperty('--accent-dark', accent);
   gfx = createRenderer(host, { quality: 'high' });
+  // iOS drops the WebGL context when GPU memory runs out, and shader compile failures only log — report both on screen
+  gfx.renderer.domElement.addEventListener('webglcontextlost', (e) => { e.preventDefault(); fail(new Error('WebGL context lost (out of GPU memory?)'), 'gpu'); });
+  gfx.renderer.debug.onShaderError = (gl, program, vs, fs) => { const log = gl.getProgramInfoLog(program) || gl.getShaderInfoLog(fs) || gl.getShaderInfoLog(vs) || 'unknown'; fail(new Error(log.trim()), 'shader'); };
   stage = stageMod.createStage({ renderer: gfx.renderer, envMap: roomEnvironment(gfx.renderer), accent, maxShadow: gfx.maxShadow });
   host.querySelector('.st-loading')?.remove();
   ro = new ResizeObserver(resize); ro.observe(host); resize();
@@ -123,8 +139,7 @@ function loop(now) {
   // physics keeps real time whatever the frame rate: fixed sub-steps, at most 0.5 s caught up per frame
   let acc = Math.min(0.5, (now - last) / 1000 || 0); last = now;
   while (acc > 1e-4) { const step = Math.min(1 / 30, acc); game.update(step, gfx.renderer.domElement.height); acc -= step; }
-  hud();
-  gfx.render(stage.scene, stage.camera, now / 1000);
+  try { hud(); gfx.render(stage.scene, stage.camera, now / 1000); } catch (e) { fail(e, 'render'); return; }
   raf = requestAnimationFrame(loop);
 }
 

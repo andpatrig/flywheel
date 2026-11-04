@@ -14,5 +14,6 @@ export default `
         </div>
         <div class="card"><h2>Device</h2><table id="devTable"><tr><td>Status</td><td>not connected</td></tr></table></div>
         <p style="color:var(--muted);font-size:0.8rem;text-align:center;margin-top:16px">Flywheel <span id="appVer"></span> · charts by Plotly.js, 3D by three.js (MIT) · type: IBM Plex (OFL) · not affiliated with Concept2</p>
+        <p id="diag" style="color:var(--muted);font-size:0.7rem;font-family:var(--mono);text-align:center;margin-top:6px;word-break:break-word"></p>
       </div>
 `;
