@@ -4,7 +4,8 @@
 import { fmtPace, fmtPaceShort, fmtTime, mean, stddev, resample, peakAt, CURVE_N } from './format.js';
 
 const root = document.documentElement;
-export const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+export const FONT = '"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+export const MONO = '"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace';
 // One type scale: chart text derives from the root font size, so charts scale with the UI on every screen.
 export const remPx = () => parseFloat(getComputedStyle(root).fontSize) || 16;
 export const chartFs = () => Math.max(11, Math.round(remPx() * 0.8));
@@ -23,8 +24,9 @@ const seqScale = (t, floor = 0) => [0, 0.2, 0.45, 0.7, 1].map((k) => [k, mix(t.s
 
 function axis(t, fs, o = {}) {
   const { title, ...rest } = o;
-  const ax = { gridcolor: t.grid, gridwidth: 1, zeroline: false, showline: false, ticks: '', tickfont: { size: fs, color: t.muted, family: FONT }, fixedrange: true, automargin: false, ...rest };
-  if (title) ax.title = { text: title, font: { size: Math.max(11, Math.round(fs * 0.9)), color: t.muted, family: FONT }, standoff: Math.round(fs * 0.6) };
+  const ax = { gridcolor: t.grid, gridwidth: 1, zeroline: false, showline: true, linecolor: t.zero, linewidth: 1, ticks: 'outside', ticklen: 4, tickwidth: 1, tickcolor: t.zero,
+    tickfont: { size: Math.round(fs * 0.92), color: t.muted, family: MONO }, fixedrange: true, automargin: false, ...rest };
+  if (title) ax.title = { text: title, font: { size: Math.max(11, Math.round(fs * 0.85)), color: t.muted, family: MONO }, standoff: Math.round(fs * 0.6) };
   return ax;
 }
 function baseLayout(t, w, h, fs, xaxis, yaxis, extra = {}) {

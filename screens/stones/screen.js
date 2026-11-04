@@ -21,21 +21,21 @@ const css = `
 #view-stones .st-top > div:first-child, #view-stones .st-bottom > div:last-child { min-width: 0; }
 #view-stones .st-read, #view-stones .st-bar { flex: none; }
 #view-stones .st-title, #view-stones .st-sub { overflow: hidden; text-overflow: ellipsis; }
-#view-stones .st-title { white-space: nowrap; font-size: 1.15rem; font-weight: 650; margin-top: 0.35rem; letter-spacing: -0.01em; }
+#view-stones .st-title { white-space: nowrap; font-size: 1.15rem; font-weight: 600; margin-top: 0.35rem; letter-spacing: -0.01em; }
 #view-stones .st-title span { color: rgba(242,242,240,0.6); font-weight: 500; }
 #view-stones .st-read { text-align: right; }
-#view-stones .st-big { font-size: clamp(2.2rem, 6.5vw, 4.25rem); font-weight: 620; letter-spacing: -0.035em; line-height: 0.95; color: var(--accent-dark, var(--accent)); }
+#view-stones .st-big { font-size: clamp(2.2rem, 6.5vw, 4.25rem); font-weight: 500; letter-spacing: -0.035em; line-height: 0.95; color: var(--accent-dark, var(--accent)); }
 #view-stones .st-big .u { font-size: 0.34em; color: rgba(242,242,240,0.7); font-weight: 500; letter-spacing: 0; margin-left: 0.15em; }
 #view-stones .st-sub { color: rgba(242,242,240,0.62); font-size: 0.85rem; margin-top: 0.35rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
 #view-stones .st-gain { color: var(--accent-dark, var(--accent)); }
 #view-stones .st-bar { display: flex; gap: 6px; align-items: flex-end; }
 #view-stones .st-bar .s { width: 2.5rem; }
-#view-stones .st-bar .track { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.18); overflow: hidden; }
+#view-stones .st-bar .track { height: 3px; border-radius: 0; background: rgba(255,255,255,0.18); overflow: hidden; }
 #view-stones .st-bar .fill { height: 100%; width: 0; background: var(--accent-dark, var(--accent)); }
-#view-stones .st-bar .kg { font-size: 0.72rem; color: rgba(242,242,240,0.55); margin-top: 6px; font-variant-numeric: tabular-nums; }
+#view-stones .st-bar .kg { font-family: var(--mono); font-size: 0.7rem; color: rgba(242,242,240,0.55); margin-top: 6px; font-variant-numeric: tabular-nums; }
 #view-stones .st-bar .s.cur .kg { color: #f2f2f0; }
 #view-stones .st-stat { text-align: right; }
-#view-stones .st-stat .v { font-size: 1.6rem; font-weight: 620; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+#view-stones .st-stat .v { font-size: 1.6rem; font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 #view-stones .st-center { align-self: center; justify-self: center; text-align: center; pointer-events: auto; }
 #view-stones .st-center .msg { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.4rem; }
 #view-stones .st-center .hint { color: rgba(242,242,240,0.65); font-size: 0.88rem; margin-bottom: 1rem; }
