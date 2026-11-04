@@ -1,22 +1,25 @@
 // screens/stones/stage.js — the Atlas Stones arena: real-scale stones, platforms, A-frame gantry with
 // an electric chain hoist, arena lighting and atmosphere. Pure scene construction + state setters;
 // the game loop (screens/stones/game.js, later) drives it from engine stroke events.
-import { THREE, rng, fbm, smooth, paint, canvasTexture, softDot, lightCone, groundAO, contactShadowTexture, createParticles } from '../../core/gfx.js';
+import { THREE, rng, fbm, smooth, paint, canvasTexture, softDot, lightCone, groundAO, detailLayer, contactShadowTexture, createParticles } from '../../core/gfx.js';
 
 // ---------- real-world parameters
 export const G = 9.81;
 export const PLATFORM_H = 1.30;                       // m, top of platform
-export const STONE_MASSES = [100, 120, 140, 160, 180];  // kg
+export const STONE_MASSES = [180, 240, 300, 400, 500];  // kg — the crane makes any mass liftable
 const CONCRETE = 2400;                                // kg/m³
 export const stoneRadius = (m) => Math.cbrt((3 * m) / (4 * Math.PI * CONCRETE));
 export const LANES = [-3.2, -1.6, 0, 1.6, 3.2];       // platform x positions
 const START_Z = 0.95;                                 // stones start on the floor in front of their platform
 // Seat on each platform: a rubber ring whose top is cupped to its stone, so contact is full all round
 // (rubber conforms; no light between stone and seat). The stone presses SEAT_SINK into the rubber.
-export const SEAT_A = 0.075, SEAT_OUT = 0.155, SEAT_MIN = 0.012, SEAT_SINK = 0.0025;   // hole radius, outer radius, min thickness
+export const SEAT_MIN = 0.012, SEAT_SINK = 0.0025;                                   // min rubber thickness, how far the stone presses in
+export const seatA = (r) => 0.31 * r, seatOut = (r) => 0.64 * r;                      // hole radius, outer radius (sized to the stone)
 export const SEAT_T = 0.02;                                                            // nominal height used for clearance
 /** Center height of a stone of radius r pressed into its seat. */
-export const seatY = (r) => PLATFORM_H + SEAT_MIN + Math.sqrt(r * r - SEAT_A * SEAT_A) - SEAT_SINK;
+export const seatY = (r) => PLATFORM_H + SEAT_MIN + Math.sqrt(r * r - seatA(r) ** 2) - SEAT_SINK;
+/** Platform width for a stone of radius r. */
+export const platW = (r) => Math.max(0.62, 2 * r + 0.1);
 
 // ---------- materials & textures (procedural, generated once)
 // Weathered concrete as on real atlas stones: light cement base, large charcoal stains (some blue-grey),
@@ -63,9 +66,9 @@ function chippedSphere(r, seed) {
   const g = new THREE.SphereGeometry(r, 288, 216), pos = g.attributes.position, n = pos.count;
   const rnd = rng(seed), noise = new THREE.SimplexNoise({ random: rng(seed + 99) });
   const randDir = () => { const z = rnd() * 2 - 1, a = rnd() * Math.PI * 2, s = Math.sqrt(1 - z * z); return new THREE.Vector3(s * Math.cos(a), z, s * Math.sin(a)); };
-  const chips = [];
-  for (let k = 0, N = 30 + Math.floor(rnd() * 12); k < N; k++) { const rad = 0.01 + Math.pow(rnd(), 1.5) * 0.018; chips.push({ d: randDir(), rad, depth: Math.min(0.0065, rad * (0.28 + rnd() * 0.12)), sharp: 2.4 + rnd() * 1.1, fresh: 0.2 }); }
-  for (let k = 0, N = 140 + Math.floor(rnd() * 30); k < N; k++) { const rad = 0.003 + Math.pow(rnd(), 1.8) * 0.007; chips.push({ d: randDir(), rad, depth: rad * 0.35, sharp: 4, fresh: 0.22 }); }
+  const chips = [], A = (r / 0.24) ** 2;                                               // chip counts scale with surface area
+  for (let k = 0, N = Math.round((30 + rnd() * 12) * A); k < N; k++) { const rad = 0.01 + Math.pow(rnd(), 1.5) * 0.018; chips.push({ d: randDir(), rad, depth: Math.min(0.0065, rad * (0.28 + rnd() * 0.12)), sharp: 2.4 + rnd() * 1.1, fresh: 0.2 }); }
+  for (let k = 0, N = Math.round((140 + rnd() * 30) * A); k < N; k++) { const rad = 0.003 + Math.pow(rnd(), 1.8) * 0.007; chips.push({ d: randDir(), rad, depth: rad * 0.35, sharp: 4, fresh: 0.22 }); }
   for (let k = 0; k < 6; k++) chips.push({ d: randDir(), rad: 0.02 + rnd() * 0.03, depth: 0.001 + rnd() * 0.0015, sharp: 2, fresh: 0 });
   for (const c of chips) c.cosMax = Math.cos((c.rad * 1.3) / r);
   const flats = Array.from({ length: 3 + Math.floor(rnd() * 3) }, () => ({ d: randDir(), lim: r - (0.002 + rnd() * 0.0045) }));
@@ -128,6 +131,23 @@ function plywoodMaps() {   // birch ply top: warm, faint grain
     const c = 0.82 + g * 0.08 + noise.noise3d(u * 40, v * 4, 1) * 0.03;
     o.map[0] = 176 * c; o.map[1] = 140 * c; o.map[2] = 98 * c;
   });
+}
+// Fine concrete detail, tiled many times over each stone: R = albedo modulation (0.5 neutral), G = height.
+// Sand grains, micro-pits and hairline scratches at a scale the base map can't hold.
+function stoneDetailMap() {
+  const noise = new THREE.SimplexNoise({ random: rng(61) });
+  const t = paint(512, 512, ['map'], (u, v, o) => {
+    const T = Math.PI * 2, cx = Math.cos(u * T), sx = Math.sin(u * T), cy = Math.cos(v * T), sy = Math.sin(v * T);
+    const at = (f, k = 0) => noise.noise3d(cx * f + k, sx * f, (cy + sy * 0.7) * f);            // seamless tile
+    const sand = at(9) * 0.5 + at(19, 3) * 0.3 + at(41, 7) * 0.2;
+    const pit = smooth(0.62, 0.76, at(13, 11)), micro = smooth(0.7, 0.82, at(31, 17));
+    const scratch = smooth(0.92, 0.985, 1 - Math.abs(at(3, 21))) * smooth(0.2, 0.6, at(5, 27));
+    o.map[0] = Math.max(0, Math.min(255, 128 + sand * 24 - pit * 55 - micro * 30 + scratch * 30));
+    o.map[1] = Math.max(0, Math.min(255, 128 + sand * 40 - pit * 110 - micro * 60 - scratch * 25));
+    o.map[2] = 128;
+  });
+  t.map.colorSpace = THREE.NoColorSpace;
+  return t.map;
 }
 function weaveMap() {   // round-sling polyester sleeve: fine diagonal weave
   return paint(64, 256, ['bumpMap'], (u, v, o) => {
@@ -260,6 +280,7 @@ export function createStage({ renderer, envMap, accent = '#00e5ff', maxShadow = 
   // platforms
   const seatMat = new THREE.MeshStandardMaterial({ color: 0x161617, metalness: 0, roughness: 0.88 });
   function seatGeoFor(r) {   // lathe profile: flat base, rounded outer lip, top surface following the stone (+ sink)
+    const SEAT_A = seatA(r), SEAT_OUT = seatOut(r);
     const yc = SEAT_MIN + Math.sqrt(r * r - SEAT_A * SEAT_A);                          // stone centre, relative to platform top
     const top = (rho) => yc - Math.sqrt(r * r - rho * rho);                              // stone underside at radius rho
     const pts = [new THREE.Vector2(SEAT_A, 0), new THREE.Vector2(SEAT_OUT - 0.006, 0), new THREE.Vector2(SEAT_OUT, 0.006)];
@@ -271,26 +292,29 @@ export function createStage({ renderer, envMap, accent = '#00e5ff', maxShadow = 
   }
   const platforms = LANES.map((x, i) => {
     const g = new THREE.Group(); g.position.set(x, 0, 0); scene.add(g);
-    const body = new THREE.Mesh(new THREE.RoundedBoxGeometry(0.62, PLATFORM_H - 0.03, 0.62, 3, 0.015), steelPaint);
+    const W = platW(stoneRadius(STONE_MASSES[i]));
+    const body = new THREE.Mesh(new THREE.RoundedBoxGeometry(W, PLATFORM_H - 0.03, W, 3, 0.015), steelPaint);
     body.position.set(0, (PLATFORM_H - 0.03) / 2, 0); body.castShadow = body.receiveShadow = true; g.add(body);
-    const pad = new THREE.Mesh(new THREE.RoundedBoxGeometry(0.66, 0.03, 0.66, 2, 0.004), ply);
+    const pad = new THREE.Mesh(new THREE.RoundedBoxGeometry(W + 0.04, 0.03, W + 0.04, 2, 0.004), ply);
     pad.position.set(0, PLATFORM_H - 0.015, 0); pad.castShadow = pad.receiveShadow = true; g.add(pad);
     const plate = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.2125), new THREE.MeshStandardMaterial({ map: plateTexture(i + 1, STONE_MASSES[i]), roughness: 0.5, metalness: 0.2 }));
-    plate.position.set(0, 0.92, 0.311); g.add(plate);
+    plate.position.set(0, 0.92, W / 2 + 0.001); g.add(plate);
     const strip = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.012, 0.006), accentMat);
-    strip.position.set(0, 0.06, 0.312); g.add(strip);
+    strip.position.set(0, 0.06, W / 2 + 0.002); g.add(strip);
     const seat = new THREE.Mesh(seatGeoFor(stoneRadius(STONE_MASSES[i])), seatMat); seat.position.set(0, PLATFORM_H, 0); seat.castShadow = seat.receiveShadow = true; g.add(seat);
-    decal(shadowTex, 1.25, x, 0.003, 0.02, 0, 0.9);
-    decal(chalkTex[i % 3], 0.95, x + 0.05, 0.004, START_Z - 0.05, i * 1.3, 0.32);
+    decal(shadowTex, W * 2, x, 0.003, 0.02, 0, 0.9);
+    decal(chalkTex[i % 3], 1.1, x + 0.05, 0.004, START_Z - 0.05, i * 1.3, 0.13);
     return g;
   });
 
   // stones
-  const contactTex = contactShadowTexture();
+  const contactTex = contactShadowTexture(), detailTex = stoneDetailMap();
   const stones = STONE_MASSES.map((m, i) => {
     const r = stoneRadius(m);
     const mat = new THREE.MeshStandardMaterial({ ...stoneMaps(31 + i * 7, STAIN[i]), bumpScale: 2.4, metalness: 0, vertexColors: true });
     const ao = groundAO(mat, { range: r * 0.75, min: 0.3 });
+    const rep = Math.round((r / 0.24) * 9);
+    detailLayer(mat, detailTex, [rep * 2, rep], { albedo: 0.5, bump: 0.9 });
     const mesh = new THREE.Mesh(chippedSphere(r, 101 + i * 13), mat);
     mesh.castShadow = mesh.receiveShadow = true;
     mesh.rotation.set(0, i * 2.3 + 0.6, 0);                       // spin only: keep the texture poles top (grazing) and bottom (seated)
@@ -390,7 +414,7 @@ export function createStage({ renderer, envMap, accent = '#00e5ff', maxShadow = 
   /** Taut sling geometry: hook height for a stone hanging with its center at y. */
   const hookYFor = (st, centerY) => centerY + tauntH(st) + SADDLE;
 
-  const supportAt = (st, x, z) => (Math.abs(x - st.lane) < 0.33 && Math.abs(z) < 0.33 ? PLATFORM_H : 0);
+  const supportAt = (st, x, z) => { const h = platW(st.r) / 2 + 0.02; return Math.abs(x - st.lane) < h && Math.abs(z) < h ? PLATFORM_H : 0; };
   /** Pose a stone by its center; contact shading and the contact shadow follow the gap to the support below. */
   function poseStone(i, x, y, z, quat = null, supportOffset = null) {
     const st = stones[i]; st.mesh.position.set(x, y, z); if (quat) st.mesh.quaternion.copy(quat);
@@ -490,10 +514,16 @@ export function createStage({ renderer, envMap, accent = '#00e5ff', maxShadow = 
   // ---------- camera framing that respects aspect ratio
   const camera = new THREE.PerspectiveCamera(30, 16 / 9, 0.1, 60);
   const camBase = new THREE.Vector3(), camTarget = new THREE.Vector3();
-  /** Small positional jolt (metres); 0 restores the base pose. */
-  /** Set the view the camera rests at (shakes are relative to it). */
-  function setView(pos, tgt) { camBase.copy(pos); camTarget.copy(tgt); camera.position.copy(pos); camera.lookAt(tgt); }
-  function shakeCamera(dx, dy, dz) { camera.position.set(camBase.x + dx, camBase.y + dy, camBase.z + dz); camera.lookAt(camTarget.x + dx * 0.4, camTarget.y + dy * 0.4, camTarget.z); }
+  let focusX = 0;
+  const cam = { follow: true };
+  /** Set a fixed view (disables lane following); shakes are relative to it. */
+  function setView(pos, tgt) { cam.follow = false; focusX = 0; camBase.copy(pos); camTarget.copy(tgt); camera.position.copy(pos); camera.lookAt(tgt); }
+  /** Pan the camera along the lanes (metres); keeps any active shake. */
+  function setFocus(x) { focusX = x; }
+  function shakeCamera(dx, dy, dz) {
+    camera.position.set(camBase.x + focusX + dx, camBase.y + dy, camBase.z + dz);
+    camera.lookAt(camTarget.x + focusX + dx * 0.4, camTarget.y + dy * 0.4, camTarget.z);
+  }
   const target = new THREE.Vector3(0, 1.95, 0.2), dir = new THREE.Vector3(-0.4, 0.06, 1).normalize();
   function frame(w, h) {
     const aspect = w / h, portrait = aspect < 1;
@@ -512,5 +542,5 @@ export function createStage({ renderer, envMap, accent = '#00e5ff', maxShadow = 
     accentMat.emissive.set(hex);
   }
 
-  return { scene, camera, frame, setView, shakeCamera, stones, platforms, placeStone, poseStone, setRig, hookYFor, dust, dustBurst, setAccent, constants: { TOP, FRONT_Z, BACK_Z, START_Z, CHAIN_TOP } };
+  return { scene, camera, cam, frame, setView, setFocus, shakeCamera, stones, platforms, placeStone, poseStone, setRig, hookYFor, dust, dustBurst, setAccent, constants: { TOP, FRONT_Z, BACK_Z, START_Z, CHAIN_TOP } };
 }

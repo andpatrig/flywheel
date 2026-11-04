@@ -25,6 +25,7 @@ export function createStonesGame(stage, { onEvent = () => {} } = {}) {
   const { START_Z, CHAIN_TOP } = stage.constants;
   const stones = stage.stones;
   stones.forEach((_, i) => stage.placeStone(i, 'floor'));
+  const initCamX = () => (stage.camera.aspect < 1 ? 1 : 0.55) * LANES[0];
 
   const S = {
     i: 0, phase: 'descend', pt: 0, time: 0, started: false, finished: false,
@@ -34,7 +35,7 @@ export function createStonesGame(stage, { onEvent = () => {} } = {}) {
     yc: stones[0].r - 0.002, vy: 0, leftFloor: false,
     th: 0, w: 0, L: 2, zPrev: START_Z, vzPrev: 0,
     from: null, to: null,
-    settle: null, ring: null, jolt: null, thrum: 0, winding: 0,
+    settle: null, ring: null, jolt: null, thrum: 0, winding: 0, camX: null,
   };
   const st = () => stones[S.i];
   const restY = (s) => s.r - 0.002;
@@ -68,6 +69,7 @@ export function createStonesGame(stage, { onEvent = () => {} } = {}) {
 
   function update(dt, viewportH) {
     dt = Math.min(dt, 1 / 20);
+    if (S.camX == null) S.camX = initCamX();
     if (S.started && !S.finished) S.time += dt;
     S.pt += dt;
     const s = st();
@@ -183,12 +185,19 @@ export function createStonesGame(stage, { onEvent = () => {} } = {}) {
     }
     stage.setRig({ bridgeX: S.bridgeX, hoistZ: S.hoistZ, hook, attached: S.attached ? a : null, thrum: S.thrum, winding: S.winding, time: S.time + S.pt });
 
-    // ---------- camera jolt
+    // ---------- camera: glide to the active lane (fully in portrait, partway on wide screens), plus impact jolt
+    if (stage.cam.follow) {
+      const k = stage.camera.aspect < 1 ? 1 : 0.55;
+      S.camX += (S.bridgeX * k - S.camX) * Math.min(1, dt * 1.2);
+      stage.setFocus(S.camX);
+    }
+    let jx = 0, jy = 0, jz = 0;
     if (S.jolt) {
       S.jolt.t += dt; const t = S.jolt.t, e = Math.exp(-t / 0.18), A = S.jolt.A * e;
-      stage.shakeCamera(A * Math.sin(t * 61), A * Math.sin(t * 47 + 1) * 1.4, A * 0.5 * Math.sin(t * 53 + 2));
-      if (t > 1) { S.jolt = null; stage.shakeCamera(0, 0, 0); }
+      jx = A * Math.sin(t * 61); jy = A * Math.sin(t * 47 + 1) * 1.4; jz = A * 0.5 * Math.sin(t * 53 + 2);
+      if (t > 1) S.jolt = null;
     }
+    stage.shakeCamera(jx, jy, jz);
     stage.dust.update(dt, stage.camera, viewportH);
   }
 
@@ -203,7 +212,7 @@ export function createStonesGame(stage, { onEvent = () => {} } = {}) {
   function updateAll(dt, vh) { rings.forEach((r) => { r.t += Math.min(dt, 1 / 20); }); _update(dt, vh); }
 
   function impact(i, E, z, vz) {
-    const s = stones[i], strength = Math.min(1, Math.sqrt(E / 60));
+    const s = stones[i], strength = Math.min(1.8, Math.sqrt(E / 60));                   // heavier stones land harder
     rings[i] = { t: 0, A: 0.0032 * strength };
     S.jolt = { t: 0, A: 0.0055 * strength };
     stage.dustBurst(new THREE.Vector3(s.lane, 0, z), PLATFORM_H + 0.03, s.r, strength, 52);
