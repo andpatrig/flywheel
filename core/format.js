@@ -1,7 +1,7 @@
 // core/format.js — number formatting and small numeric helpers shared by every screen.
 export const CURVE_N = 40;   // force curves are resampled to this many points for averaging and maps
 
-export const fmtPace = (s) => (s == null || !isFinite(s) || s <= 0) ? '–:––' : `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
+export const fmtPace = (s) => { if (s == null || !isFinite(s) || s <= 0) return '–:––'; const t = Math.round(s * 10); return `${Math.floor(t / 600)}:${((t % 600) / 10).toFixed(1).padStart(4, '0')}`; };
 export const fmtPaceShort = (s) => { const r = Math.round(s); return `${Math.floor(r / 60)}:${String(r % 60).padStart(2, '0')}`; };
 export const fmtTime = (s) => { s = Math.max(0, Math.round(s || 0)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
 export const fmtInt = (v) => v == null || !isFinite(v) ? '–' : Math.round(v).toLocaleString();

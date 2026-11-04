@@ -209,3 +209,10 @@ dialog h3 { margin: 0 0 4px; font-size: 1.05rem; }
   .notice { display: none; }
   .btn.primary, #connectBtn { padding-top: 4px; padding-bottom: 4px; }
 }
+
+/* ---------- chips, tags ---------- */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 6px 10px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); border-radius: var(--r-sm); cursor: pointer; }
+.chip.on { color: var(--accent); border-color: var(--accent); }
+.tag { font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 6px; border: 1px solid var(--border); border-radius: var(--r-sm); color: var(--ink-2); margin-right: 6px; }
+.tag.pb { color: var(--accent); border-color: var(--accent); }

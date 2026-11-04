@@ -10,9 +10,10 @@ export const db = {
 
 export function summarize(s) {
   const st = s.strokes, last = st[st.length - 1] || {}, powers = st.map((x) => x.power).filter((x) => x > 0);
+  const distance = Math.max(last.distance ?? 0, s.end?.distance ?? 0), elapsed = Math.max(last.elapsed ?? 0, s.end?.elapsed ?? 0);
   return {
-    distance: last.distance ?? 0, elapsed: last.elapsed ?? 0, strokes: st.length,
-    avgPace: last.distance ? last.elapsed / (last.distance / 500) : null,
+    distance, elapsed, strokes: st.length,
+    avgPace: distance ? elapsed / (distance / 500) : null,
     avgPower: mean(powers), maxPower: powers.length ? Math.max(...powers) : null,
     avgSpm: mean(st.map((x) => x.spm).filter(Boolean)), avgHr: mean(st.map((x) => x.hr).filter(Boolean)),
     avgPeakForce: mean(st.map((x) => x.peakForce).filter(Boolean)), avgDriveLength: mean(st.map((x) => x.driveLength).filter(Boolean)),

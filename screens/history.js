@@ -4,10 +4,11 @@ import { onThemeChange } from '../core/theme.js';
 import { $, toast, twoTap } from '../core/ui.js';
 import { fmtPace, fmtTime, fmtInt } from '../core/format.js';
 import { db, sessionJSON, exportFile, fileStamp } from '../core/store.js';
+import { classify, personalBests, completed } from '../core/events.js';
 import { chartFs, trendFig, splitsFig, histFig, forceBandFig, scatterFig, mapFig, draw } from '../core/charts.js';
 
 export const id = 'history';
-let shown = false, openSession = null;
+let shown = false, openSession = null, filter = 'all';
 
 export function mount(el) {
   el.innerHTML = html;
@@ -39,12 +40,20 @@ async function render() {
   $('historyEmpty').hidden = all.length > 0 || !!openSession;
   $('historyList').hidden = !!openSession; $('sessionDetail').hidden = !openSession;
   if (openSession) return renderDetail(openSession);
-  $('historyList').innerHTML = all.map((s) => {
-    const d = new Date(s.startedAt), m = s.summary;
+  // event filter chips: one per event present, in order of first appearance (newest sessions first)
+  const events = []; for (const s of all) { const e = classify(s); if (!events.find((x) => x.key === e.key)) events.push(e); }
+  if (!events.find((e) => e.key === filter)) filter = 'all';
+  $('historyFilters').innerHTML = events.length > 1 ? [{ key: 'all', label: 'All' }, ...events].map((e) => `<button class="chip${e.key === filter ? ' on' : ''}" data-key="${e.key}">${e.label}</button>`).join('') : '';
+  $('historyFilters').querySelectorAll('.chip').forEach((c) => c.onclick = () => { filter = c.dataset.key; render(); });
+  const pb = personalBests(all), rows = all.filter((s) => filter === 'all' || classify(s).key === filter);
+  $('historyList').innerHTML = rows.map((s) => {
+    const d = new Date(s.startedAt), m = s.summary, e = classify(s), isPb = pb.get(e.key)?.id === s.id, fixed = !!e.target;
+    const headline = e.target?.time ? `${fmtInt(m.distance)} m` : e.target?.distance ? fmtTime(m.elapsed) : `${fmtInt(m.distance)} m`;
+    const rest = e.target?.distance ? `${fmtInt(m.distance)} m` : fmtTime(m.elapsed);
     return `<div class="item" data-id="${s.id}">
-      <div class="t">${d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} · ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</div>
-      <div class="big num">${fmtInt(m.distance)} m</div>
-      <div class="m num">${fmtTime(m.elapsed)} · ${fmtPace(m.avgPace)} /500m${m.avgPower ? ' · ' + Math.round(m.avgPower) + ' W' : ''} · ${m.strokes} strokes</div>
+      <div class="t"><span class="tag">${e.label}${fixed && !completed(s) ? ' · incomplete' : ''}</span>${isPb ? '<span class="tag pb">PB</span>' : ''} ${d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} · ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</div>
+      <div class="big num">${headline}</div>
+      <div class="m num">${rest} · ${fmtPace(m.avgPace)} /500m${m.avgPower ? ' · ' + Math.round(m.avgPower) + ' W' : ''} · ${m.strokes} strokes</div>
     </div>`;
   }).join('');
   $('historyList').querySelectorAll('.item').forEach((el) => el.onclick = () => {
@@ -56,7 +65,8 @@ async function render() {
 function renderDetail(s) {
   if (!shown) return;
   const m = s.summary, d = new Date(s.startedAt);
-  $('dTitle').textContent = `${fmtInt(m.distance)} m · ${fmtTime(m.elapsed)}`;
+  const ev = classify(s);
+  $('dTitle').textContent = `${ev.label} · ${fmtInt(m.distance)} m · ${fmtTime(m.elapsed)}`;
   $('dMeta').textContent = `${d.toLocaleString(undefined, { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}${s.ergType ? ' · ' + s.ergType : ''}${m.drag ? ' · drag ' + m.drag : ''}`;
   const stats = [
     ['Avg pace', fmtPace(m.avgPace), '/500m', true], ['Avg power', fmtInt(m.avgPower), 'W'], ['Rate', m.avgSpm ? m.avgSpm.toFixed(1) : '–', 'spm'],

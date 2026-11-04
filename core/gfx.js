@@ -221,3 +221,22 @@ export function detailLayer(material, tex, repeat = [10, 5], { albedo = 0.55, bu
   material.customProgramCacheKey = () => 'groundAO+detail';
   return u;
 }
+
+/** Interlocking rubber gym tiles: 2 × 2 tiles of 1 m per texture, seams, flecks. Shared by the arenas. */
+export function rubberFloorMaps() {
+  const noise = new THREE.SimplexNoise({ random: rng(7) }), rnd = rng(11);
+  const flecks = new Float32Array(1024 * 1024);
+  for (let i = 0; i < 60000; i++) flecks[Math.floor(rnd() * flecks.length)] = 0.4 + rnd() * 0.6;
+  // texture covers 2 × 2 tiles of 1 m
+  return paint(1024, 1024, ['map', 'roughnessMap', 'bumpMap'], (u, v, o) => {
+    const fx = (u * 2) % 1, fy = (v * 2) % 1, seam = Math.min(fx, 1 - fx, fy, 1 - fy);
+    const s = smooth(0.0, 0.004, seam);                                   // 0 at seam
+    const tile = Math.floor(u * 2) + Math.floor(v * 2) * 2;
+    const n = fbm(noise, u * 9 + tile, v * 9, 0.5, 3), f = flecks[Math.floor(v * 1023) * 1024 + Math.floor(u * 1023)];
+    let c = 27 + n * 4 + tile * 0.8 + f * 26;
+    c *= 0.55 + 0.45 * s;
+    o.map[0] = c; o.map[1] = c; o.map[2] = c * 1.03;
+    const r = 195 + n * 20 - f * 25 + (1 - s) * 40; o.roughnessMap[0] = o.roughnessMap[1] = o.roughnessMap[2] = Math.min(255, r);
+    const b = 140 + n * 12 + f * 20 - (1 - s) * 110; o.bumpMap[0] = o.bumpMap[1] = o.bumpMap[2] = Math.max(0, b);
+  });
+}

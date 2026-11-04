@@ -1,6 +1,7 @@
 // markup for the history screen
 export default `
       <div class="page wide">
+        <div id="historyFilters" class="chips" style="max-width:820px;margin:0 auto 12px"></div>
         <div id="historyList" class="list" style="max-width:820px;margin:0 auto"></div>
         <div id="historyEmpty" class="empty">No saved sessions yet. Connect, row, then tap <b>Save</b>.</div>
         <div id="sessionDetail" hidden>

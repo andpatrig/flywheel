@@ -232,6 +232,9 @@ export class PM5Simulator extends PM5 {
   constructor(opts = {}) {
     super();
     this.rate = opts.rate ?? 24;         // spm
+    this.distance = opts.distance ?? 0;  // m: a fixed-distance piece (0 = just row)
+    this.time = opts.time ?? 0;          // s: a fixed-time piece
+    this._ended = false;
     this.paceTarget = opts.pace ?? 125;  // s/500m
     this.drag = opts.drag ?? 118;
     this._t = 0; this._dist = 0; this._strokes = 0; this._cal = 0;
@@ -260,7 +263,7 @@ export class PM5Simulator extends PM5 {
     const dt = t - this._t; this._t = t;
     const pace = this._pace();
     const speed = 500 / pace;
-    this._dist += speed * dt;
+    if (!this._ended) this._dist += speed * dt;
     const watts = 2.8 / Math.pow(pace / 500, 3);
     this._cal += (watts * 4 + 350) / 3600 * dt;   // C2 calorie formula approx
     this._hr += (0.02 * (145 + (watts - 170) * 0.3 - this._hr)) + (Math.random() - 0.5);
@@ -270,8 +273,12 @@ export class PM5Simulator extends PM5 {
     // 0x0031
     const b1 = new DataView(new ArrayBuffer(19));
     put24(b1, 0, t * 100); put24(b1, 3, this._dist * 10);
-    b1.setUint8(6, 0); b1.setUint8(7, 255); b1.setUint8(8, 1); b1.setUint8(9, 1); b1.setUint8(10, strokeState);
-    put24(b1, 11, this._dist); put24(b1, 14, 0); b1.setUint8(17, 0); b1.setUint8(18, this.drag);
+    const done = (this.distance && this._dist >= this.distance) || (this.time && t >= this.time);
+    if (done && this.distance) this._dist = this.distance;
+    this._ended = !!done;
+    const wType = this.distance ? 3 : this.time ? 5 : 1, wDur = this.distance ? this.distance : this.time ? this.time * 100 : 0, wDurT = this.distance ? 0x80 : 0;
+    b1.setUint8(6, wType); b1.setUint8(7, 255); b1.setUint8(8, done ? 10 : 1); b1.setUint8(9, done ? 0 : 1); b1.setUint8(10, strokeState);
+    put24(b1, 11, this._dist); put24(b1, 14, wDur); b1.setUint8(17, wDurT); b1.setUint8(18, this.drag);
     this._handle(parse.generalStatus(b1));
 
     // 0x0032
@@ -292,7 +299,7 @@ export class PM5Simulator extends PM5 {
     const period = 60 / this.rate * 1000;
     this._timers.push(setTimeout(() => {
       if (!this.connected) return;
-      this._stroke(); this._scheduleStroke();
+      if (!this._ended) this._stroke(); this._scheduleStroke();
     }, period * (0.97 + Math.random() * 0.06)));
   }
   _stroke() {

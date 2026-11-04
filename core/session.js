@@ -15,6 +15,7 @@
 //   reset    {}                     a fresh session started (empty)
 //   saved    { session }            a session was written to the store
 //   end      { session }            the PM5 reported end-of-workout (session auto-saved)
+import { workoutFromStatus } from './events.js';
 import { PM5, PM5Simulator, ERG_TYPE } from './pm5.js';
 import { resample, peakAt, CURVE_N } from './format.js';
 import { db, summarize } from './store.js';
@@ -59,7 +60,7 @@ export class SessionEngine extends EventTarget {
   // ---------- internals
   _emit(type, detail) { this.dispatchEvent(new CustomEvent(type, { detail })); }
   _fresh() {
-    this.session = { startedAt: Date.now(), strokes: [], samples: [], ergType: null, device: this.session?.device ?? null };
+    this.session = { startedAt: Date.now(), strokes: [], samples: [], ergType: null, workout: null, device: this.session?.device ?? null };
     this.latest = {}; this._curveSum = null; this.curveN = 0;
   }
   async _attach(device) {
@@ -89,6 +90,14 @@ export class SessionEngine extends EventTarget {
     const L = this.latest, S = this.session;
     // The PM5 restarts its clock on a new workout: close the previous session if it had real rowing in it.
     if (m.elapsed != null && L.elapsed != null && m.elapsed < L.elapsed - 5 && S.strokes.length > 3) this.save();
+    if (m.type === 'status') {
+      if (m.elapsed > 0 && S.strokes.length) S.end = { elapsed: m.elapsed, distance: m.distance };   // the monitor's final numbers outlast the last stroke
+      // the programmed piece (type + duration) rides along in every status packet; keep the first one with rowing in it
+      if (m.workoutType != null && (!S.workout || S.strokes.length < 2)) S.workout = workoutFromStatus(m);
+      // the monitor ends a fixed piece itself (state 10 "Workout end" / 12 "Workout logged"): save as soon as it does,
+      // so the file holds exactly the piece, nothing to trim
+      if (m.workoutState >= 10 && m.workoutState <= 12 && !(L.workoutState >= 10 && L.workoutState <= 12) && S.strokes.length > 3) { Object.assign(this.latest, m); this._emit('status', { latest: this.latest, msg: m }); this.save(); return; }
+    }
     Object.assign(this.latest, m);
     if (m.type === 'status1') {
       if (m.pace && m.elapsed > 0) {

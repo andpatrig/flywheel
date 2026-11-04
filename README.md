@@ -55,6 +55,15 @@ subplots; splits; power distribution with mean ± 1σ and coefficient of variati
 curve mean ± 1σ with first-quarter vs. last-quarter overlays; rate vs. power colored by
 elapsed time; and the full-session stroke map.
 
+## Games
+
+- **Stones** — a crane lifts five Atlas stones (180–500 kg); every stroke's work becomes height, Δh = W/(m·g).
+- **Tug** — tug-of-war against your last row of the same piece, your best, or a target pace. Program a distance or
+  time on the PM5 first; the lead is your distance minus theirs at the same elapsed time; each stroke yanks the
+  rope by its work. Whoever is ahead when the piece ends wins. The row is saved like any other session.
+
+History groups sessions by event (2k, 5k, 30 min, intervals, just row) as reported by the PM5, with personal bests.
+
 ## Hosting (5 minutes, free)
 
 Web Bluetooth requires HTTPS. GitHub Pages is the easiest:
@@ -127,3 +136,4 @@ Smart Communications Interface Definition*, concept2.com → Service → Softwar
 
 Pace-target “ghost boat”, split/interval view (`0x0037`), heart-rate zones, stroke
 consistency scoring, side-by-side session comparison, JSON export to the Concept2 Logbook API.
+

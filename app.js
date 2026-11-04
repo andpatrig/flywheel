@@ -9,8 +9,9 @@ import * as live from './screens/live.js';
 import * as history from './screens/history.js';
 import * as about from './screens/about.js';
 import * as stones from './screens/stones/screen.js';
+import * as tug from './screens/tug/screen.js';
 
-const SCREENS = { live, stones, history, about };
+const SCREENS = { live, stones, tug, history, about };
 const app = { startDemo, show: showScreen };
 let active = null;
 
@@ -32,7 +33,7 @@ $('connectBtn').onclick = async () => {
   if (!engine.supported) { startDemo(); return; }
   try { await engine.connect(); } catch (e) { if (!/cancel/i.test(e.message)) toast(e.message); }
 };
-function startDemo({ stay = false } = {}) { engine.demo(); if (!stay) showScreen('live'); }
+function startDemo({ stay = false, opts } = {}) { engine.demo(opts); if (!stay) showScreen('live'); }
 engine.on('conn', ({ state, name }) => {
   const btn = $('connectBtn'), norm = btn.querySelector('.norm');
   btn.classList.remove('armed');
@@ -82,7 +83,7 @@ applyPrefs();
 showScreen('live');
 // Service worker: check for a new version on launch and whenever the app comes back to the foreground;
 // when a new version takes over, reload once so the new code is what's running.
-export const APP_VERSION = 'v11';
+export const APP_VERSION = 'v12';
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   const hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
