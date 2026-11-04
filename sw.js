@@ -1,5 +1,5 @@
 // Minimal offline cache. Bump CACHE when you deploy a new version.
-const CACHE = 'flywheel-v1';
+const CACHE = 'flywheel-v2';
 const ASSETS = ['./', './index.html', './pm5.js', './manifest.json', './icon.svg'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });

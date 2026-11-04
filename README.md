@@ -2,7 +2,7 @@
 
 A single-page web app that connects to a Concept2 PM5 over Bluetooth LE and shows
 live pace, stroke rate, power, per-stroke force curves, and keeps a session history on
-the phone with CSV export. No server, no account, no dependencies — five static files.
+the phone with JSON export. No server, no account, no dependencies — five static files.
 
 ## Files
 
@@ -42,12 +42,28 @@ the real byte packets, so you can explore without the erg.
 ## Data
 
 Sessions are stored in the browser's IndexedDB (on-device only). *Finish & save*
-stores the session; the PM5's end-of-workout message also auto-saves. Export gives
-one CSV row per stroke:
+stores the session; the PM5's end-of-workout message also auto-saves.
 
-`strokeCount, elapsed (s), distance (m), power (W), pace (s/500m), spm, hr, driveLength (m),
-driveTime (s), recoveryTime (s), strokeDistance (m), peakForce (N), avgForce (N),
-workPerStroke (J), drag, forceCurveN ("f1;f2;…" in N, catch → finish)`
+Open a session in **History** to export it:
+
+- **JSON** — the full session: device info, summary, one record per stroke (with the
+  force curve as an array), and the 1 Hz pace/rate/HR time series. This is the
+  canonical format; load it with `pandas.read_json` / `jsonlite::fromJSON`.
+- **Copy** — puts the JSON on the clipboard, for browsers that block file export.
+
+On iOS (Bluefy) export opens the share sheet: *Save to Files*, AirDrop, Mail, etc.
+Browsers that can't share files fall back to a normal download.
+
+JSON shape (`schema: 1`):
+
+```
+{ app, schema, id, startedAt, device:{name,serial,firmware,model}, ergType, units,
+  summary:{distance, elapsed, strokes, avgPace, avgPower, maxPower, avgSpm, avgHr, ...},
+  strokes:[{n, t, d, power, pace, spm, hr, driveLength, driveTime, recoveryTime,
+            strokeDistance, peakForce, avgForce, workPerStroke, drag, curve:[N,...]}],
+  samples:[{t, pace, spm, hr, speed}],
+  avgCurve:[N,...] }
+```
 
 The PM5 reports handle force in 0.1 lbf; the app converts to newtons (×4.448).
 

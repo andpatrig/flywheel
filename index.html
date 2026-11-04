@@ -140,7 +140,7 @@
   <div id="historyEmpty" class="empty">No saved sessions yet. Connect, row, then tap <b>Finish &amp; save</b>.</div>
   <div id="sessionDetail" hidden>
     <div class="row" style="margin-bottom:8px"><button id="backBtn" class="ghost">← All sessions</button><span style="flex:1"></span>
-      <button id="csvBtn">Export CSV</button><button id="delBtn" class="danger ghost">Delete</button></div>
+      <button id="jsonBtn">Export JSON</button><button id="copyBtn" class="ghost">Copy</button><button id="delBtn" class="danger ghost">Delete</button></div>
     <div class="card"><h2 id="dTitle"></h2><table id="dTable"></table></div>
     <div class="card"><h2><span class="swatch" style="background:var(--s1)"></span>Power per stroke</h2><div class="chartwrap"><canvas id="dPwr" height="150"></canvas><div class="tip" id="dPwrTip"></div></div></div>
     <div class="card"><h2><span class="swatch" style="background:var(--s3)"></span>Pace</h2><div class="chartwrap"><canvas id="dPace" height="150"></canvas><div class="tip" id="dPaceTip"></div></div></div>
@@ -163,7 +163,7 @@
   <div class="card">
     <h2>Data</h2>
     <div class="small" style="color:var(--ink-2);font-size:14px">
-      Everything stays on your phone (IndexedDB) — nothing is uploaded. Per-stroke data includes power, drive length and time, recovery time, peak and average handle force (converted from the PM5's lbf to newtons), work per stroke, and the full force curve when the PM5 firmware provides it. CSV export gives you one row per stroke, ready for R or Python.
+      Everything stays on your phone (IndexedDB) — nothing is uploaded. Per-stroke data includes power, drive length and time, recovery time, peak and average handle force (converted from the PM5's lbf to newtons), work per stroke, and the full force curve when the PM5 firmware provides it. JSON export gives you one record per stroke (with its force curve) plus the pace time series, ready for R or Python.
     </div>
   </div>
   <div class="card"><h2>Device</h2><table id="devTable"><tr><td>Status</td><td>not connected</td></tr></table></div>
@@ -230,7 +230,7 @@ function onMessage(m) {
     case 'connected':
       setStatus(true, m.name || 'PM5');
       $('devTable').innerHTML = Object.entries({ Status: 'connected', Name: m.name, ...m.info }).map(([k, v]) => `<tr><td>${k}</td><td>${v ?? ''}</td></tr>`).join('');
-      newSession(); toast('Connected — start rowing'); break;
+      newSession(); session.device = { name: m.name ?? null, ...(m.info || {}) }; toast('Connected — start rowing'); break;
     case 'disconnected':
       setStatus(false, 'Disconnected'); $('splitState').textContent = 'disconnected';
       if (session?.strokes.length) toast('Disconnected — your session is still here; tap Finish & save');
@@ -243,7 +243,7 @@ function onMessage(m) {
     case 'end': toast('Workout finished on PM5 — saving'); saveSession(); break;
   }
 }
-function newSession() { session = { startedAt: Date.now(), strokes: [], samples: [], curves: [], ergType: null }; latest = {}; curveSum = null; curveN = 0; $('recState').hidden = true; $('saveBtn').disabled = $('discardBtn').disabled = true; drawAll(); }
+function newSession() { session = { startedAt: Date.now(), strokes: [], samples: [], curves: [], ergType: null, device: session?.device ?? null }; latest = {}; curveSum = null; curveN = 0; $('recState').hidden = true; $('saveBtn').disabled = $('discardBtn').disabled = true; drawAll(); }
 
 function onStatus(m) {
   // a new workout on the PM5 resets elapsed time; treat that as a new session if the old one had strokes
@@ -369,15 +369,40 @@ function renderDetail(s) {
 }
 $('backBtn').onclick = () => { openSession = null; renderHistory(); };
 $('delBtn').onclick = async () => { if (openSession && confirm('Delete this session?')) { await db.del(openSession.id); openSession = null; renderHistory(); } };
-$('csvBtn').onclick = () => {
-  const s = openSession; if (!s) return;
-  const cols = ['strokeCount', 'elapsed', 'distance', 'power', 'pace', 'spm', 'hr', 'driveLength', 'driveTime', 'recoveryTime', 'strokeDistance', 'peakForce', 'avgForce', 'workPerStroke', 'drag'];
-  const lines = [cols.join(',') + ',forceCurveN'];
-  for (const x of s.strokes) lines.push(cols.map(c => x[c] == null ? '' : (typeof x[c] === 'number' ? +x[c].toFixed(3) : x[c])).join(',') + ',' + (x.curve ? '"' + x.curve.map(v => Math.round(v)).join(';') + '"' : ''));
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = `flywheel_${new Date(s.startedAt).toISOString().slice(0, 16).replace(/[:T]/g, '-')}.csv`; a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+// ------------------------------------------------------------- export
+const stamp = (s) => new Date(s.startedAt).toISOString().slice(0, 16).replace(/[:T]/g, '-');
+const r3 = (v) => typeof v === 'number' ? +v.toFixed(3) : v;
+function sessionJSON(s) {
+  return JSON.stringify({
+    app: 'flywheel', schema: 1, id: s.id, startedAt: new Date(s.startedAt).toISOString(),
+    device: s.device ?? null, ergType: s.ergType ?? null,
+    units: { elapsed: 's', distance: 'm', pace: 's/500m', power: 'W', force: 'N', driveLength: 'm', driveTime: 's', recoveryTime: 's', workPerStroke: 'J', speed: 'm/s' },
+    summary: s.summary,
+    strokes: s.strokes.map(x => ({ n: x.strokeCount, t: r3(x.elapsed), d: r3(x.distance), power: x.power, pace: x.pace, spm: x.spm, hr: x.hr,
+      driveLength: x.driveLength, driveTime: x.driveTime, recoveryTime: x.recoveryTime, strokeDistance: x.strokeDistance,
+      peakForce: r3(x.peakForce), avgForce: r3(x.avgForce), workPerStroke: x.workPerStroke, drag: x.drag, curve: x.curve ? x.curve.map(v => Math.round(v)) : null })),
+    samples: s.samples.map(x => ({ t: r3(x.t), pace: x.pace, spm: x.spm, hr: x.hr, speed: x.speed })),
+    avgCurve: s.avgCurve ? s.avgCurve.map(v => Math.round(v)) : null,
+  }, null, 1);
+}
+// iOS wrappers (Bluefy) ignore <a download>; the share sheet is the reliable path there.
+async function exportFile(name, text, mime) {
+  const file = new File([text], name, { type: mime });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: name }); return; }
+    catch (e) { if (e.name === 'AbortError') return; }
+  }
+  try {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast(`Downloading ${name} — if nothing happens, use Copy`);
+  } catch { toast('Export not supported here — use Copy'); }
+}
+$('jsonBtn').onclick = () => openSession && exportFile(`flywheel_${stamp(openSession)}.json`, sessionJSON(openSession), 'application/json');
+$('copyBtn').onclick = async () => {
+  if (!openSession) return;
+  try { await navigator.clipboard.writeText(sessionJSON(openSession)); toast('Session JSON copied to clipboard'); }
+  catch { toast('Clipboard blocked by this browser'); }
 };
 
 // ------------------------------------------------------------- charts (canvas, no deps)
