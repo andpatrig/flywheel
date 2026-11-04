@@ -15,7 +15,21 @@ export function ensure() {
 }
 export const context = () => ctx;
 export const out = () => master;
-export function unlock() { if (!ensure()) return; if (ctx.state !== 'running') ctx.resume().catch(() => {}); }
+export function unlock() {
+  if (!ensure()) return;
+  // iOS: play through the ring/silent switch where the browser allows it, and kick the context with a silent
+  // buffer from inside the gesture (WebKit only counts touchend/click as activation, not touchstart/pointerdown)
+  try { if (navigator.audioSession && navigator.audioSession.type !== 'playback') navigator.audioSession.type = 'playback'; } catch { /* not supported */ }
+  if (ctx.state !== 'running') ctx.resume().catch(() => {});
+  try { const b = ctx.createBuffer(1, 1, 22050), s = ctx.createBufferSource(); s.buffer = b; s.connect(ctx.destination); s.start(0); } catch { /* ignore */ }
+}
+let armed = false;
+/** Unlock audio on the first real user gesture anywhere, and resume when the app returns to the foreground. */
+export function armUnlock() {
+  if (armed) return; armed = true;
+  for (const ev of ['touchend', 'click', 'keydown']) document.addEventListener(ev, unlock, { passive: true, capture: true });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && ctx && ctx.state !== 'running') ctx.resume().catch(() => {}); });
+}
 export function setMuted(m) { muted = m; if (master) master.gain.setTargetAtTime(m ? 0 : 0.7, ctx.currentTime, 0.03); }
 export const isMuted = () => muted;
 export const ready = () => !!ctx && ctx.state === 'running' && !muted;

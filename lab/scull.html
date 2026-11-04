@@ -1,0 +1,15 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>scull look-dev</title>
+<style>html,body{margin:0;background:#060708;height:100%;overflow:hidden}canvas{display:block}</style></head>
+<body>
+<script type="module">
+import { THREE, createRenderer, roomEnvironment, lightCone } from '../core/gfx.js';
+import { createStage } from '../screens/tug/stage.js';
+const qs = new URLSearchParams(location.search), P = (k, d) => qs.has(k) ? +qs.get(k) : d;
+const gfx = createRenderer(document.body, { quality: 'high', bloom: { strength: 0.14, radius: 0.5, threshold: 0.94 } });
+const stage = await createStage({ renderer: gfx.renderer, envMap: roomEnvironment(gfx.renderer), accent: '#00e5ff', maxShadow: 2048 });
+gfx.setSize(innerWidth, innerHeight); stage.frame(innerWidth, innerHeight);
+if (qs.has('d')) { const d = P('d', 8), az = P('az', 0.35); stage.camera.position.set(Math.sin(az) * d, P('h', 2.2), Math.cos(az) * d); stage.camera.lookAt(P('tx', 0), P('ty', 0.3), 0); }
+stage.setRig({ shift: P('shift', -0.3), tension: P('tension', 0.7), wobble: 0, time: 0, phaseMe: P('pm', 0.2), phaseOpp: P('po', 0.6) });
+let n = 0; (function loop() { gfx.render(stage.scene, stage.camera, 0); if (++n > 8) { window.__ready = true; return; } requestAnimationFrame(loop); })();
+</script></body></html>

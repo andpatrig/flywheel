@@ -1,15 +1,14 @@
-// core/theme.js — preferences (theme, accent, layout, …) and their application to the document.
-// Screens read `prefs` and subscribe with onThemeChange() to redraw when colors or layout change.
+// core/theme.js — preferences (theme, accent, …) and their application to the document.
+// Screens read `prefs` and subscribe with onThemeChange() to redraw when colors change.
 export const ACCENTS = window.FW_ACCENTS;   // defined by core/prepaint.js
 
 const KEY = 'flywheel.prefs';
-const DEFAULTS = { theme: 'system', accent: 'cyan', layout: 'auto', panel: 'metrics', units: 'pace', noticeDismissed: false, sound: true };
+const DEFAULTS = { theme: 'system', accent: 'cyan', panel: 'metrics', units: 'pace', noticeDismissed: false, sound: true };
 export const prefs = (() => { try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return { ...DEFAULTS }; } })();
 export const savePrefs = () => { try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch {} };
 
 const root = document.documentElement;
 const mqDark = matchMedia('(prefers-color-scheme: dark)');
-const mqWide = matchMedia('(min-width: 960px) and (orientation: landscape)');
 const listeners = new Set();
 
 export const isDark = () => root.dataset.theme === 'dark';
@@ -22,7 +21,7 @@ export function applyPrefs() {
   root.dataset.theme = dark ? 'dark' : 'light';
   const a = ACCENTS[prefs.accent] || ACCENTS.cyan;
   root.style.setProperty('--accent', dark ? a.d : a.l);
-  root.dataset.mode = prefs.layout === 'grid' ? 'grid' : prefs.layout === 'focus' ? 'focus' : (mqWide.matches ? 'grid' : 'focus');
+  root.dataset.mode = 'focus';                                   // one display at a time, every screen (AirPlay mirrors the phone)
   const meta = document.querySelector('meta[name=theme-color]');
   if (meta) meta.content = dark ? '#070708' : '#f3f3f1';
   listeners.forEach((fn) => fn());
@@ -31,4 +30,3 @@ export function applyPrefs() {
 export function setPrefs(patch) { Object.assign(prefs, patch); savePrefs(); applyPrefs(); }
 
 mqDark.addEventListener('change', applyPrefs);
-mqWide.addEventListener('change', applyPrefs);

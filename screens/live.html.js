@@ -33,6 +33,12 @@ export default `
           <div class="plot" id="forcePlot"></div>
         </article>
 
+        <article class="panel" data-panel="cycle">
+          <div class="ph"><div><div class="pt">Stroke cycle</div><div class="ps num" id="cycSub">drive and recovery as one turn</div></div>
+            <div class="rcol"><div class="ro num"><span id="cycNow">0</span><span class="u">on pace</span></div><div class="step" data-step><button type="button" data-d="-1" aria-label="Slower target">−</button><span class="num" data-tgt>2:00.0</span><button type="button" data-d="1" aria-label="Faster target">+</button></div></div></div>
+          <div class="plot svgplot" id="cycPlot"></div>
+        </article>
+
         <article class="panel" data-panel="pace">
           <div class="ph"><div><div class="pt">Pace</div><div class="ps num" id="paceSub">faster is up</div></div>
             <div class="ro num"><span id="paceNow">–:––</span><span class="u">/500m</span></div></div>
@@ -44,11 +50,19 @@ export default `
             <div class="ro num"><span id="mapNow">–</span><span class="u">% peak</span></div></div>
           <div class="plot" id="mapPlot"></div>
         </article>
+        <article class="panel" data-panel="boat">
+          <div class="ph"><div><div class="pt">Pace boat</div><div class="ps num" id="boatSub">a boat at your target pace</div></div>
+            <div class="rcol"><div class="ro num"><span id="boatNow">0.0</span><span class="u" id="boatU">m</span></div><div class="step" data-step><button type="button" data-d="-1" aria-label="Slower target">−</button><span class="num" data-tgt>2:00.0</span><button type="button" data-d="1" aria-label="Faster target">+</button></div></div></div>
+          <div class="plot svgplot" id="boatPlot"></div>
+          <div class="pbar"><div class="pl"><span class="k" id="pbLk">Covered</span><span class="v num" id="pbL">0 m</span></div>
+            <div class="track"><i id="pbFill"></i><b id="pbOpp"></b></div>
+            <div class="pr"><span class="k" id="pbRk">To go</span><span class="v num" id="pbR">–</span></div></div>
+        </article>
       </div>
 
       <footer class="controls">
         <button class="ctl" id="displayBtn"><span class="k">Display</span><span class="v" id="displayName">Metrics</span></button>
-        <div class="pips" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="pips" id="pips" aria-hidden="true"></div>
         <button class="ctl" id="unitsBtn"><span class="k">Units</span><span class="v" id="unitsName">/500m</span></button>
         <button class="ctl" id="saveBtn" disabled><span class="k" id="saveK">Session</span><span class="v norm">Save</span><span class="v conf">Tap to save</span></button>
       </footer>

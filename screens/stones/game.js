@@ -6,7 +6,7 @@
 //
 // Weight is conveyed by physics rather than keyframes:
 //  • the stone hangs on the chain as a stiff spring sized to its mass → take-up, lag, one bounce per pulse
-//  • the grab lands on the stone and closes its tines around it; the chain takes up tension before liftoff
+//  • the slings start slack and visibly tighten before the stone leaves the floor
 //  • carried across, it swings as a true pendulum (θ'' = −g/L·sinθ − a/L·cosθ), damped; the operator waits
 //  • released ~3.5 cm above the platform it lands at free-fall speed: the platform rings, the camera jolts,
 //    chalk bursts along the contact ring, the stone slides off-centre into the seat disk, wobbles and is still
@@ -15,8 +15,7 @@ import { G, PLATFORM_H, LANES, SEAT_T, seatY } from './stage.js';
 
 const CLEAR = 0.07;          // m: stone bottom must clear the platform top by this before traversing
 const DROP_H = 0.035;        // m: release height above the seated position
-const GRIP_T = 0.7;          // s: tines closing
-const OPEN_T = 0.3;          // s: tines opening; the stone is free once they have swung clear
+const SLACK = 0.12;          // m: sling slack when the hook first engages
 const P_MAX = 1600;          // W: hoist motor limit — spreads each stroke's joules over ~0.3 s
 const HOOK_PARK = 2.75;      // m: hook height while travelling between lanes
 const ss = (t) => { t = Math.min(1, Math.max(0, t)); return t * t * t * (t * (t * 6 - 15) + 10); };   // smootherstep
@@ -32,7 +31,7 @@ export function createStonesGame(stage, { onEvent = () => {} } = {}) {
     i: 0, phase: 'descend', pt: 0, time: 0, started: false, finished: false,
     bank: 0, total: 0, lastGain: 0, liftE: 0,
     bridgeX: LANES[0], hoistZ: START_Z, hookY: HOOK_PARK, hookZ: START_Z,
-    winch: 0, attached: false, grip: 0,
+    winch: 0, attached: false, liftTime: null, strokes: 0,
     yc: stones[0].r - 0.002, vy: 0, leftFloor: false,
     th: 0, w: 0, L: 2, zPrev: START_Z, vzPrev: 0,
     from: null, to: null,
@@ -40,21 +39,21 @@ export function createStonesGame(stage, { onEvent = () => {} } = {}) {
   };
   const st = () => stones[S.i];
   const restY = (s) => s.r - 0.002;
-  const tautCenterFromWinch = (s, winch) => winch - (stage.hookYFor(s, 0));   // center height when the chain is just taut
+  const tautCenterFromWinch = (s, winch) => winch - (stage.hookYFor(s, 0));   // center height when the slings are just taut
 
   function setPhase(p) { S.phase = p; S.pt = 0; onEvent(p, S); }
 
   // ---------- input
   function onStroke(work, driveTime = 0.8) {
-    if (S.finished || !(work > 0)) return;
-    S.started = true;
+    if (S.finished || S.liftTime != null || !(work > 0)) return;
+    S.started = true; S.strokes++;
     S.bank += work; S.total += work;
     S.lastGain = work / (st().mass * G);
   }
 
   // ---------- per-phase updates
   function stepVertical(dt, s) {
-    // stone on a stiff spring (chain + grab) below the winch; ground contact below
+    // stone on a stiff spring (chain + slings) below the winch; ground contact below
     const k = s.mass * Math.pow(2 * Math.PI * 2.2, 2), c = 2 * 0.2 * Math.sqrt(k * s.mass);
     const sub = 6, h = dt / sub;
     let T = 0;
@@ -71,23 +70,18 @@ export function createStonesGame(stage, { onEvent = () => {} } = {}) {
   function update(dt, viewportH) {
     dt = Math.min(dt, 1 / 20);
     if (S.camX == null) S.camX = initCamX();
-    if (S.started && !S.finished) S.time += dt;
+    if (S.started && S.liftTime == null) S.time += dt;
     S.pt += dt;
     const s = st();
     S.winchV = 0; S.winding = 0;
 
     switch (S.phase) {
-      case 'descend': {                                      // grab comes down open and lands on the stone
-        const target = stage.hookYFor(s, restY(s));
+      case 'descend': {                                      // hook comes down to the stone, slings slack
+        const target = stage.hookYFor(s, restY(s)) - SLACK;
         const ease = Math.min(1, (S.hookY - target) / 0.3 + 0.12);            // slows for the last 30 cm
         S.hookY = Math.max(target, S.hookY - dt * 0.9 * Math.min(1, S.pt * 2) * ease);
-        S.winding = 0.6; S.grip = 0;
-        if (S.hookY <= target + 1e-4) { S.winch = target; S.yc = restY(s); S.vy = 0; setPhase('grip'); }
-        break;
-      }
-      case 'grip': {                                         // tines close until they touch the stone
-        S.grip = ss(S.pt / GRIP_T);
-        if (S.pt >= GRIP_T) { S.grip = 1; S.attached = true; S.liftE = 0; S.leftFloor = false; onEvent('gripped', S); setPhase('lift'); }
+        S.winding = 0.6;
+        if (S.hookY <= target + 1e-4) { S.winch = target; S.attached = true; S.yc = restY(s); S.vy = 0; S.liftE = 0; S.leftFloor = false; setPhase('lift'); onEvent('hooked', S); }
         break;
       }
       case 'lift': {
@@ -104,10 +98,11 @@ export function createStonesGame(stage, { onEvent = () => {} } = {}) {
         if (!S.leftFloor && S.yc > restY(s) + 0.004) { S.leftFloor = true; stage.dustBurst(stage.stones[S.i].mesh.position, 0, s.r, 0.35, 26); onEvent('liftoff', S); }
         if (S.liftE >= need - 1e-6 && S.yc - s.r >= PLATFORM_H + SEAT_T + CLEAR - 0.004 && Math.abs(S.vy) < 0.04) {
           S.L = CHAIN_TOP - S.yc; S.th = 0; S.w = 0; S.zPrev = S.hoistZ; S.vzPrev = 0; setPhase('traverse');
+          if (S.liftTime == null) S.liftTime = S.time;                         // the rower's part is done: the clock stops here
         }
         break;
       }
-      case 'traverse': case 'steady': case 'lower': case 'open': {
+      case 'traverse': case 'steady': case 'lower': {
         if (S.phase === 'traverse') {
           const T = 1.9, u = S.pt / T;
           S.hoistZ = START_Z + (0 - START_Z) * ss(u);
@@ -124,12 +119,7 @@ export function createStonesGame(stage, { onEvent = () => {} } = {}) {
           const goal = seatY(s.r) + DROP_H;
           const yNow = CHAIN_TOP - S.L * Math.cos(S.th);
           if (yNow > goal + 1e-4) { S.L = Math.min(CHAIN_TOP - goal, S.L + 0.32 * dt * Math.min(1, S.pt * 3)); S.winding = 0.8; }
-          else if (Math.abs(S.th) < 0.03 || S.pt > 4) setPhase('open');                           // let go
-        }
-        if (S.phase === 'open') {
-          S.grip = 1 - ss(S.pt / OPEN_T);
-          if (S.grip < 0.5) {                                                                       // tines have swung clear: free fall
-            const yNow = CHAIN_TOP - S.L * Math.cos(S.th);
+          else if (Math.abs(S.th) < 0.03 || S.pt > 4) {                                            // release
             S.attached = false; S.vy = 0; S.ycFall = yNow; S.zFall = S.hoistZ + S.L * Math.sin(S.th);
             S.hookY = CHAIN_TOP - (S.L - stage.hookYFor(s, 0)) * Math.cos(S.th);
             S.vzFall = S.L * S.w * Math.cos(S.th); setPhase('release');
@@ -141,7 +131,6 @@ export function createStonesGame(stage, { onEvent = () => {} } = {}) {
         break;
       }
       case 'release': {                                      // free fall onto the platform
-        S.grip = Math.max(0, S.grip - dt / OPEN_T);
         S.vy -= G * dt; S.ycFall += S.vy * dt; S.zFall += S.vzFall * dt;
         S.hookY += 0.5 * dt;                                 // grab eases up off the stone
         if (S.ycFall <= seatY(s.r)) {
@@ -149,6 +138,7 @@ export function createStonesGame(stage, { onEvent = () => {} } = {}) {
           S.ycFall = seatY(s.r);
           impact(S.i, E, S.zFall, S.vzFall);
           setPhase('return'); S.from = { z: S.hoistZ, x: S.bridgeX, y: S.hookY };
+          if (S.i >= LANES.length - 1) { S.finished = true; onEvent('finish', S); }                       // result shows once the stone is seated
         }
         break;
       }
@@ -157,9 +147,9 @@ export function createStonesGame(stage, { onEvent = () => {} } = {}) {
         S.hookY = S.from.y + (HOOK_PARK - S.from.y) * ss(S.pt / 1.0);
         S.hoistZ = S.from.z + (START_Z - S.from.z) * ss((S.pt - 0.3) / 1.6);
         S.bridgeX = S.from.x + (LANES[next] - S.from.x) * ss((S.pt - 0.6) / 1.8);
-        S.winding = S.pt < 1 ? 0.6 : 0; S.grip = 0;
+        S.winding = S.pt < 1 ? 0.6 : 0;
         if (S.pt >= 2.5) {
-          if (S.i >= LANES.length - 1) { S.finished = true; setPhase('done'); onEvent('finish', S); }
+          if (S.i >= LANES.length - 1) setPhase('done');
           else { S.i++; S.yc = restY(stones[S.i]); setPhase('descend'); }
         }
         break;
@@ -185,7 +175,7 @@ export function createStonesGame(stage, { onEvent = () => {} } = {}) {
     // ---------- pose the active stone + crane
     const a = stones[S.i];
     let hook;
-    if (['traverse', 'steady', 'lower', 'open'].includes(S.phase)) {
+    if (['traverse', 'steady', 'lower'].includes(S.phase)) {
       const Lh = S.L - stage.hookYFor(a, 0);                                // pivot → hook = L − (hook height above stone center)
       hook = new THREE.Vector3(0, CHAIN_TOP - Lh * Math.cos(S.th), S.hoistZ + Lh * Math.sin(S.th));
       stage.poseStone(S.i, a.lane, S.yc, S.hoistZ + S.L * Math.sin(S.th));
@@ -194,9 +184,9 @@ export function createStonesGame(stage, { onEvent = () => {} } = {}) {
       stage.poseStone(S.i, a.lane, S.ycFall, S.zFall);
     } else {
       hook = new THREE.Vector3(0, S.hookY, S.hoistZ);
-      if (S.phase === 'lift' || S.phase === 'grip') stage.poseStone(S.i, a.lane, S.yc, START_Z);
+      if (S.phase === 'lift') stage.poseStone(S.i, a.lane, S.yc, START_Z);
     }
-    stage.setRig({ bridgeX: S.bridgeX, hoistZ: S.hoistZ, hook, target: a, grip: S.grip, thrum: S.thrum, winding: S.winding, time: S.time + S.pt });
+    stage.setRig({ bridgeX: S.bridgeX, hoistZ: S.hoistZ, hook, attached: S.attached ? a : null, thrum: S.thrum, winding: S.winding, time: S.time + S.pt });
 
     // ---------- camera: glide to the active lane (fully in portrait, partway on wide screens), plus impact jolt
     if (stage.cam.follow) {
@@ -238,9 +228,9 @@ export function createStonesGame(stage, { onEvent = () => {} } = {}) {
 
   /** HUD snapshot. */
   function state() {
-    const s = st(), h = Math.max(0, (S.phase === 'lift' ? S.yc - s.r : ['traverse', 'steady', 'lower', 'open', 'release', 'return'].includes(S.phase) ? PLATFORM_H : 0));
+    const s = st(), h = Math.max(0, (S.phase === 'lift' ? S.yc - s.r : ['traverse', 'steady', 'lower', 'release', 'return'].includes(S.phase) ? PLATFORM_H : 0));
     const progress = stones.map((_, k) => (k < S.i || (k === S.i && ['release', 'return', 'done'].includes(S.phase)) ? 1 : k === S.i ? Math.min(1, h / PLATFORM_H) : 0));
-    return { index: S.i, mass: s.mass, height: Math.min(h, PLATFORM_H), target: PLATFORM_H, lastGain: S.lastGain, time: S.time, total: S.total, bank: S.bank, phase: S.phase, progress, finished: S.finished };
+    return { index: S.i, mass: s.mass, height: Math.min(h, PLATFORM_H), target: PLATFORM_H, lastGain: S.lastGain, time: S.liftTime ?? S.time, total: S.total, bank: S.bank, phase: S.phase, progress, finished: S.finished, strokes: S.strokes };
   }
   return { update: updateAll, onStroke, state, S };
 }

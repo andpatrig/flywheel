@@ -11,7 +11,7 @@ import { fmtPace, fmtTime, fmtInt } from '../../core/format.js';
 
 export const id = 'tug';
 let el, host, hudEl, gfx, stage, game, sfx, mods = null, built = false, shown = false, raf = 0, last = 0, ro;
-let mode = 'setup', event = null, choice = { kind: 'pace', pace: 120 }, choices = { last: null, best: null };
+let idleT = 0, mode = 'setup', event = null, choice = { kind: 'pace', pace: 120 }, choices = { last: null, best: null };
 let lastStatus = { elapsed: 0, distance: 0, pace: null }, savedFlag = false;
 
 const css = `
@@ -51,15 +51,12 @@ const css = `
 #view-tug .tg-step button { width: 2rem; height: 2rem; border: 1px solid rgba(242,242,240,0.25); background: transparent; color: #f2f2f0; font-size: 1rem; cursor: pointer; }
 #view-tug .tg-res { font-size: clamp(2rem, 6vw, 3.4rem); font-weight: 600; letter-spacing: -0.03em; line-height: 1; margin-bottom: 0.4rem; color: var(--accent-dark, var(--accent)); }
 #view-tug .tg-res.lost { color: #f2f2f0; }
-#view-tug .tg-snd { pointer-events: auto; width: 2.4rem; height: 2.4rem; border: 1px solid rgba(242,242,240,0.22); background: rgba(6,7,8,0.35); color: rgba(242,242,240,0.75); display: grid; place-items: center; cursor: pointer; }
-#view-tug .tg-snd svg { width: 1.1rem; height: 1.1rem; } #view-tug .tg-snd .off { display: none; } #view-tug .tg-snd[data-muted="1"] .on { display: none; } #view-tug .tg-snd[data-muted="1"] .off { display: block; }
 #view-tug .tg-mid { flex: 1; display: flex; justify-content: center; align-items: flex-end; }
 #view-tug .tg-loading { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: grid; place-items: center; color: rgba(242,242,240,0.6); font-size: 0.9rem; }
 #view-tug .tg-fail { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: grid; place-items: center; padding: 1.5rem; text-align: center; color: #f2f2f0; }
 #view-tug .tg-fail .why { color: rgba(242,242,240,0.65); font-size: 0.85rem; font-family: var(--mono); word-break: break-word; max-width: 36rem; }
 @media (max-width: 560px) { #view-tug .tg-hud { padding: 0.9rem 1rem; } #view-tug .tg-title { font-size: 1rem; } #view-tug .tg-stat .v, #view-tug .tg-left .v { font-size: 1.2rem; } #view-tug .wide-only { display: none; } }
 `;
-const SND = `<svg class="on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 6.5a8 8 0 0 1 0 11"/></svg><svg class="off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 9l4 6M21 9l-4 6"/></svg>`;
 
 export function mount(container, app) {
   el = container;
@@ -74,19 +71,16 @@ export function mount(container, app) {
       <div class="tg-center" id="tgCenter"></div>
       <div class="tg-bottom">
         <div class="tg-left"><div class="v num" id="tgTime">0:00</div><div class="tg-sub" id="tgDist">0 m</div></div>
-        <div class="tg-mid"><button class="tg-snd" id="tgSnd" title="Sound" aria-label="Sound">${SND}</button></div>
+        <div class="tg-mid"></div>
         <div class="tg-stat"><div class="v num" id="tgPace">–:––</div><div class="tg-sub" id="tgOppPace">vs –:––</div></div>
       </div>
       <div class="tg-prog"><i id="tgProg"></i></div>
     </div>`;
   host = el.querySelector('.tg-host'); hudEl = el.querySelector('.tg-hud');
   el.app = app;
-  const snd = el.querySelector('#tgSnd'); snd.dataset.muted = prefs.sound === false ? '1' : '0';
-  snd.onclick = () => { const m = snd.dataset.muted !== '1'; snd.dataset.muted = m ? '1' : '0'; setPrefs({ sound: !m }); sfx?.setMuted(m); if (!m) sfx?.unlock(); };
-  document.addEventListener('pointerdown', () => { if (shown) sfx?.unlock(); }, { passive: true });
 
   engine.on('status', ({ latest }) => {
-    lastStatus = { elapsed: latest.elapsed, distance: latest.distance, pace: latest.pace };
+    lastStatus = { elapsed: latest.elapsed, distance: latest.distance, pace: latest.pace, strokeState: latest.strokeState, driveTime: latest.driveTime, recoveryTime: latest.recoveryTime };
     if (game && mode === 'racing') game.status(lastStatus);
     if (mode === 'setup' && shown) refreshEvent();
   });
@@ -169,8 +163,8 @@ function arm() {
   el.querySelector('#tgTitle').innerHTML = `vs ${opp.name} <span>· ${opp.label}</span>`;
 }
 function onEvent(name, d) {
-  if (name === 'yank') { sfx?.yank(d.dv, d.mine); if (stage) { stage.kick(d.mine ? stage.mine.position.x : stage.ghost.position.x, 6 + Math.round(d.dv * 5), 0.4 * d.dv); } }
-  if (name === 'finish') { mode = 'done'; sfx?.finish(d.win); renderCenter(); }
+  if (name === 'yank' && stage) stage.kick(!d.mine, 4 + Math.round(d.dv * 2), 0.18 * d.dv);   // the sled being dragged kicks up dust
+  if (name === 'finish') { mode = 'done'; renderCenter(); }
 }
 
 function fail(err, where) { console.error('[tug]', where, err); cancelAnimationFrame(raf); game = null; host.innerHTML = `<div class="tg-fail"><div><div class="msg">The arena couldn't start</div><div class="why">${where}: ${String(err?.message || err).slice(0, 240)}</div></div></div>`; hudEl.style.display = 'none'; }
@@ -181,7 +175,7 @@ async function build() {
 }
 async function buildInner() {
   if (!hasWebGL2()) throw new Error('this browser has no WebGL 2 (needed for the 3D arena)');
-  mods = await Promise.all([import('../../core/gfx.js'), import('./stage.js'), import('./game.js'), import('./audio.js')]);
+  mods = await Promise.all([import('../../core/gfx.js'), import('./stage.js'), import('./game.js')]);
   const [{ createRenderer, roomEnvironment }, stageMod] = mods;
   await new Promise((r) => setTimeout(r, 30));
   const p = prefs, accent = (window.FW_ACCENTS[p.accent] || window.FW_ACCENTS.cyan).d;
@@ -191,8 +185,7 @@ async function buildInner() {
   stage = stageMod.createStage({ renderer: gfx.renderer, envMap: roomEnvironment(gfx.renderer), accent, maxShadow: gfx.maxShadow });
   host.querySelector('.tg-loading')?.remove();
   ro = new ResizeObserver(resize); ro.observe(host); resize();
-  sfx = mods[3].createTugAudio(); sfx.setMuted(prefs.sound === false); if (shown) sfx.start();
-  stage.setRope({ shift: 0, tension: 0.4 });
+  stage.setRig({ shift: 0, tension: 0.4 }); stage.shakeCamera(0, 0);
   renderCenter();
   if (shown) loop(performance.now());
 }
@@ -213,19 +206,19 @@ function hud() {
 function loop(now) {
   if (!shown || !stage) return;
   const dt = Math.min(0.5, (now - last) / 1000 || 0); last = now;
+  idleT += dt;
   if (game) {
     const S = game.update(dt);
-    stage.setRope({ shift: S.x, tension: S.tension, wobble: S.wobble, time: S.time });
-    stage.shakeCamera(S.v * 0.012, Math.abs(S.v) * 0.004);
-    sfx?.update(S);
-  }
+    stage.setRig({ shift: S.x, tension: S.tension, wobble: S.wobble, v: S.v, time: S.time });
+    stage.shakeCamera(S.v * 0.004, Math.abs(S.v) * 0.0015);
+  } else { stage.setRig({ shift: 0, tension: 0.4, time: idleT }); stage.shakeCamera(0, 0); }
   try { hud(); stage.dust.update(dt, stage.camera, gfx.renderer.domElement.height); gfx.render(stage.scene, stage.camera, now / 1000); } catch (e) { fail(e, 'render'); return; }
   raf = requestAnimationFrame(loop);
 }
 
 export function show() {
   shown = true; last = performance.now();
-  if (!built) build(); else { resize(); cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); sfx?.start(); }
+  if (!built) build(); else { resize(); cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); }
   if (mode === 'setup') refreshEvent(); renderCenter();
 }
-export function hide() { shown = false; cancelAnimationFrame(raf); sfx?.stop(); }
+export function hide() { shown = false; cancelAnimationFrame(raf); }

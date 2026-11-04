@@ -55,12 +55,27 @@ subplots; splits; power distribution with mean ± 1σ and coefficient of variati
 curve mean ± 1σ with first-quarter vs. last-quarter overlays; rate vs. power colored by
 elapsed time; and the full-session stroke map.
 
+## Displays (Live tab — tap anywhere to cycle)
+
+Metrics · Power · Force · **Cycle** · Pace · Map · **Boat**. One display at a time on every screen, so a TV over
+AirPlay gets the same layout bigger.
+
+- **Cycle** — the stroke as a circle: catch at twelve o'clock, the drive's arc sized by your drive : recovery
+  ratio, the force curve drawn outward over it (last stroke solid, average dashed, previous strokes faint), a
+  hand that sweeps with your actual stroke. Ten segments around the rim count consecutive strokes at or under
+  the target pace; ten in a row closes the ring.
+- **Boat** — a top view of the course with a pace boat at your target pace; gap in metres and seconds,
+  covered and to go for the piece programmed on the PM5. Runs vertically on a phone held upright.
+- The target pace (− / +) is shared by both.
+
 ## Games
 
-- **Stones** — a crane lifts five Atlas stones (180–500 kg); every stroke's work becomes height, Δh = W/(m·g).
+- **Stones** — one 1,000 kg Atlas stone onto a 1.30 m platform. Every stroke raises it by exactly
+  work ÷ (m·g); the clock runs from your first stroke until it clears the platform. Best time is kept.
 - **Tug** — tug-of-war against your last row of the same piece, your best, or a target pace. Program a distance or
   time on the PM5 first; the lead is your distance minus theirs at the same elapsed time; each stroke yanks the
-  rope by its work. Whoever is ahead when the piece ends wins. The row is saved like any other session.
+  rope by its work, and a decisive lead drags the other sled over the line. Whoever is ahead when the piece ends
+  wins. The row is saved like any other session.
 
 History groups sessions by event (2k, 5k, 30 min, intervals, just row) as reported by the PM5, with personal bests.
 

@@ -6,11 +6,11 @@ import { rubberFloorMaps, THREE, rng, fbm, smooth, paint, canvasTexture, softDot
 // ---------- real-world parameters
 export const G = 9.81;
 export const PLATFORM_H = 1.30;                       // m, top of platform
-export const STONE_MASSES = [180, 240, 300, 400, 500];  // kg — the crane makes any mass liftable
+export const STONE_MASSES = [1000];                    // kg — one stone, one tonne
 const CONCRETE = 2400;                                // kg/m³
 export const stoneRadius = (m) => Math.cbrt((3 * m) / (4 * Math.PI * CONCRETE));
-export const LANES = [-3.2, -1.6, 0, 1.6, 3.2];       // platform x positions
-const START_Z = 0.95;                                 // stones start on the floor in front of their platform
+export const LANES = [0];                             // platform x position
+const START_Z = 1.2;                                 // stones start on the floor in front of their platform
 // Seat on each platform: a rubber ring whose top is cupped to its stone, so contact is full all round
 // (rubber conforms; no light between stone and seat). The stone presses SEAT_SINK into the rubber.
 export const SEAT_MIN = 0.012, SEAT_SINK = 0.0025;                                   // min rubber thickness, how far the stone presses in
@@ -143,9 +143,8 @@ function plateTexture(n, mass) {
     g.fillStyle = '#0d0e10'; g.fillRect(0, 0, w, h);
     g.strokeStyle = 'rgba(255,255,255,0.18)'; g.lineWidth = 4; g.strokeRect(10, 10, w - 20, h - 20);
     g.fillStyle = '#f2f2f0'; g.textBaseline = 'alphabetic';
-    g.font = '700 190px system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif'; g.fillText(String(n), 38, 222);
-    g.font = '600 64px system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif'; g.fillText(`${mass}`, 210, 160);
-    g.fillStyle = 'rgba(242,242,240,0.6)'; g.font = '600 40px system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif'; g.fillText('KG', 212, 222);
+    g.font = '700 150px system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif'; g.fillText(mass.toLocaleString('en-US'), 40, 205);
+    g.fillStyle = 'rgba(242,242,240,0.6)'; g.font = '600 46px system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif'; g.fillText('KG', 44, 268);
   });
 }
 function decalTexture(kind, seed) {
@@ -172,7 +171,7 @@ function boardTexture(accent) {
     g.fillStyle = '#ffffff'; g.font = '700 120px system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif';
     g.fillText('ATLAS STONES', 120, 215);
     g.fillStyle = 'rgba(255,255,255,0.55)'; g.font = '500 54px system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif';
-    g.fillText('FLYWHEEL STRONGMAN · 5 STONES · 700 KG', 1050, 200);
+    g.fillText('FLYWHEEL STRONGMAN · ONE STONE · 1,000 KG', 1000, 200);
     g.globalCompositeOperation = 'multiply';                 // LED pixel grid
     for (let x = 0; x < w; x += 6) { g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x, 0, 2, h); }
     for (let y = 0; y < h; y += 6) { g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(0, y, w, 2); }
@@ -197,6 +196,32 @@ function beamBetween(a, b, size, mat) {   // square hollow section from point a 
   m.castShadow = m.receiveShadow = true;
   return m;
 }
+// Basket hitch around a sphere of radius R; legs meet at height H above center. If H is shorter than the
+// taut height H0, the fixed-length legs bow outward and droop (slack). Plane 'x' or 'z'.
+function slingCurve(R, H, plane, H0 = H) {
+  H = Math.max(H, R * 1.08);
+  const th = Math.acos(R / H), pts = [], N = 48;
+  const P = (a, r) => plane === 'x' ? new THREE.Vector3(Math.sin(a) * r, Math.cos(a) * r, 0) : new THREE.Vector3(0, Math.cos(a) * r, Math.sin(a) * r);
+  const top = new THREE.Vector3(0, H, 0);
+  const L0 = Math.sqrt(Math.max(0, H0 * H0 - R * R)), L = Math.sqrt(H * H - R * R), excess = Math.max(0, L0 - L);
+  const bow = Math.sqrt(0.375 * L * excess);                                  // arc of length L0 over chord L
+  const leg = (tp, sign) => {                                                 // hook → tangent point, bowed outward
+    const out = []; for (const t of [0.2, 0.4, 0.6, 0.8]) {
+      const q = top.clone().lerp(tp, t), k = 4 * t * (1 - t) * bow;
+      if (plane === 'x') { q.x += sign * k; } else { q.z += sign * k; }
+      q.y -= k * 0.35; out.push(q);
+    } return out;
+  };
+  pts.push(top.clone(), ...leg(P(th, R), 1));
+  for (let i = 0; i <= N; i++) pts.push(P(th + (i / N) * (Math.PI * 2 - 2 * th), R));
+  pts.push(...leg(P(Math.PI * 2 - th, R), -1).reverse(), top.clone());
+  return new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+}
+function freeSlingCurve(plane) {   // a released sling hanging limp from the hook as a narrow loop
+  const P = (a, b) => plane === 'x' ? new THREE.Vector3(a, b, 0) : new THREE.Vector3(0, b, a);
+  return new THREE.CatmullRomCurve3([P(0, 0), P(0.06, -0.2), P(0.09, -0.48), P(0.04, -0.7), P(0, -0.73), P(-0.04, -0.7), P(-0.09, -0.48), P(-0.06, -0.2), P(0, 0)], false, 'centripetal');
+}
+
 // ---------- the stage
 export function createStage({ renderer, envMap, accent = '#00e5ff', maxShadow = 2048 }) {
   const scene = new THREE.Scene();
@@ -218,14 +243,14 @@ export function createStage({ renderer, envMap, accent = '#00e5ff', maxShadow = 
   const forged = new THREE.MeshStandardMaterial({ color: 0x3a3c40, metalness: 0.85, roughness: 0.38 });
   const tape = new THREE.MeshStandardMaterial({ color: 0x55544f, roughness: 0.9 });
   const accentMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: new THREE.Color(accent), emissiveIntensity: 1.4 });
-  const STAIN = [0.4, 0.72, 0.86, 0.18, 0.55];                    // how weathered each stone is (as in real sets)
+  const STAIN = [0.6];                    // how weathered each stone is (as in real sets)
 
   // floor + tape lines
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(28, 28), floorMat);
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
   const addTape = (w, d, x, z) => { const t = new THREE.Mesh(new THREE.PlaneGeometry(w, d), tape); t.rotation.x = -Math.PI / 2; t.position.set(x, 0.002, z); t.receiveShadow = true; scene.add(t); };
-  addTape(9.4, 0.05, 0, 1.75);                                   // start line
-  for (let i = 0; i <= LANES.length; i++) addTape(0.03, 2.4, -4.0 + i * 1.6, 0.5);   // lane lines
+  addTape(3.2, 0.05, 0, 1.95);                                   // start line
+  for (const x of [-1.1, 1.1]) addTape(0.03, 2.9, x, 0.55);      // lane lines
 
   const decal = (tex, size, x, y, z, rot = 0, opacity = 1) => {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, opacity, polygonOffset: true, polygonOffsetFactor: -2 }));
@@ -281,7 +306,7 @@ export function createStage({ renderer, envMap, accent = '#00e5ff', maxShadow = 
 
   // overhead bridge crane: two runway beams along x (columns only at the far ends), a bridge girder
   // that travels to each lane, and an electric chain hoist that rides the bridge in z.
-  const TOP = 3.75, FRONT_Z = 1.9, BACK_Z = -1.1, SPAN_X = 5.3;
+  const TOP = 3.85, FRONT_Z = 2.2, BACK_Z = -1.1, SPAN_X = 2.7;
   for (const z of [FRONT_Z, BACK_Z]) {
     const rw = new THREE.Mesh(iBeam(SPAN_X * 2 + 0.4, 0.3, 0.17), yellow); rw.rotation.y = Math.PI / 2; rw.position.set(0, TOP + 0.3, z);
     rw.castShadow = rw.receiveShadow = true; scene.add(rw);
@@ -309,65 +334,42 @@ export function createStage({ renderer, envMap, accent = '#00e5ff', maxShadow = 
   hoist.traverse((o) => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
   const CHAIN_TOP = TOP + 0.01;
 
-  // chain (instanced links) and the hydraulic grab — posed by setRig()
+  // chain (instanced links), hook, round slings — posed by setRig()
   const LINK_PITCH = 0.0235, MAX_LINKS = 160;
   const linkGeo = new THREE.TorusGeometry(0.0105, 0.0033, 8, 18); linkGeo.scale(1, 1.6, 1);
   const chain = new THREE.InstancedMesh(linkGeo, galv, MAX_LINKS); chain.castShadow = true; gantry.add(chain);
-
-  // Four-tine stone grab. Local origin = chain eye; y down the ram to the head; tines hinge on a ring below the
-  // head and swing outward (open) or close until they touch the stone. Geometry solved so the same grab fits
-  // every stone: open clears the largest by 11 cm, closed tips tuck under the smallest by 4 cm.
-  const GRAB = { HR: 0.32, HINGE_Y: -0.24, PAD_T: 0.02, RT: 0.5, A: 1.2, TUBE: 0.02, OPEN: 1.05 };
-  const HEAD = GRAB.PAD_T - GRAB.HINGE_Y;                          // chain eye → stone top (0.27 m)
-  const tineSteel = new THREE.MeshStandardMaterial({ color: 0x6b6e73, metalness: 0.85, roughness: 0.42 });
   const hook = new THREE.Group(); gantry.add(hook);
-  {
-    const eye = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.008, 10, 24), forged); hook.add(eye);
-    const ram = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.045, 0.13, 20), forged); ram.position.y = -0.09; hook.add(ram);
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.23, 0.1, 40), yellow); body.position.y = -0.19; hook.add(body);
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(GRAB.HR, 0.022, 12, 56), forged); ring.rotation.x = Math.PI / 2; ring.position.y = GRAB.HINGE_Y; hook.add(ring);
-    const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.05, 32), rubberPad); pad.position.y = GRAB.HINGE_Y - GRAB.PAD_T + 0.025; hook.add(pad);
-    for (let k = 0; k < 4; k++) {
-      const br = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.06, 0.05), yellow); const a = k * Math.PI / 2 + Math.PI / 4;
-      br.position.set(Math.cos(a) * 0.26, -0.2, -Math.sin(a) * 0.26); br.rotation.y = a; hook.add(br);
-    }
-  }
-  // tine profile in its pivot frame (x outward, y up), hinge at the origin
-  const tineCurve = (() => { const pts = []; for (let i = 0; i <= 24; i++) { const a = GRAB.A * i / 24; pts.push(new THREE.Vector3(-GRAB.RT + GRAB.RT * Math.cos(a), -GRAB.RT * Math.sin(a), 0)); } return new THREE.CatmullRomCurve3(pts); })();
-  const tineGeo = new THREE.TubeGeometry(tineCurve, 48, GRAB.TUBE, 12, false);
-  const tineTip = tineCurve.getPoint(1);
-  const tines = [];
-  for (let k = 0; k < 4; k++) {
-    const a = k * Math.PI / 2 + Math.PI / 4, arm = new THREE.Group();
-    arm.position.set(Math.cos(a) * GRAB.HR, GRAB.HINGE_Y, -Math.sin(a) * GRAB.HR); arm.rotation.y = a;   // local +x points outward
-    const pivot = new THREE.Group(); arm.add(pivot);
-    const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.07, 14), forged); pin.rotation.x = Math.PI / 2; pivot.add(pin);
-    const tube = new THREE.Mesh(tineGeo, tineSteel); pivot.add(tube);
-    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.026, 18, 14), rubberPad); tip.position.copy(tineTip); pivot.add(tip);
-    hook.add(arm); tines.push(pivot);
-  }
+  const hb = new THREE.Mesh(new THREE.RoundedBoxGeometry(0.07, 0.09, 0.05, 2, 0.008), yellow); hb.position.y = 0.05; hook.add(hb);
+  const shank = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.06, 16), forged); shank.position.y = -0.01; hook.add(shank);
+  const bend = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.016, 14, 40, Math.PI * 1.45), forged); bend.position.y = -0.085; bend.rotation.z = Math.PI * 0.62; hook.add(bend);
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.015, 16, 12), forged); hook.add(tip);
+  tip.position.set(Math.cos(Math.PI * 0.62 + Math.PI * 1.45) * 0.05, -0.085 + Math.sin(Math.PI * 0.62 + Math.PI * 1.45) * 0.05, 0);
+  const latch = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.05, 0.02), yellow); latch.position.set(0.03, -0.06, 0); latch.rotation.z = 0.5; hook.add(latch);
   hook.traverse((o) => { if (o.isMesh) o.castShadow = true; });
-  /** Tine angle at which the grab just touches a stone of radius r (solved once per stone, cached). */
-  function closedAngle(st) {
-    if (st.clawAngle != null) return st.clawAngle;
-    const c = [-GRAB.HR, -(GRAB.PAD_T + st.r)], samples = tineCurve.getPoints(60);
-    const minD = (phi) => { let m = 1e9; for (const p of samples) { const u = p.x * Math.cos(phi) - p.y * Math.sin(phi), y = p.x * Math.sin(phi) + p.y * Math.cos(phi); m = Math.min(m, Math.hypot(u - c[0], y - c[1])); } return m; };
-    let lo = -0.8, hi = 1.3; for (let k = 0; k < 40; k++) { const m = (lo + hi) / 2; if (minD(m) - (st.r + GRAB.TUBE + 0.003) > 0) hi = m; else lo = m; }
-    return (st.clawAngle = (lo + hi) / 2);
+  // two round slings (basket hitch, crossed at 90°): polyester sleeve, the colour a 2-tonne sling carries
+  const slingMat = new THREE.MeshStandardMaterial({ color: 0x8d2c78, roughness: 0.8, bumpMap: weaveMap(), bumpScale: 0.8 });
+  const SLING_R = 0.024;
+  const slingGroup = new THREE.Group(); gantry.add(slingGroup);
+  let slingKey = '';
+  const SADDLE = 0.115;                                          // hook top → sling saddle
+  const tautH = (st) => st.r + SLING_R + 0.52;                   // taut leg height above stone center
+  function buildSlings(key, make) {
+    if (key === slingKey) return; slingKey = key;
+    slingGroup.children.forEach((c) => c.geometry.dispose()); slingGroup.clear();
+    for (const plane of ['x', 'z']) { const t = new THREE.Mesh(new THREE.TubeGeometry(make(plane), 220, SLING_R, 12, false), slingMat); t.castShadow = true; slingGroup.add(t); }
   }
   const _top = new THREE.Vector3(), _ht = new THREE.Vector3(), _d = new THREE.Vector3(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _m4 = new THREE.Matrix4(), _one = new THREE.Vector3(1, 1, 1);
   const DOWN = new THREE.Vector3(0, -1, 0), UP = new THREE.Vector3(0, 1, 0), TW = new THREE.Quaternion().setFromAxisAngle(UP, Math.PI / 2);
 
   /**
-   * Pose the crane. bridgeX: bridge position; hoistZ: hoist along the bridge; hook: chain-eye position of the grab
-   * (bridge-local, may swing away from under the hoist); target: the stone the grab is working (sets its closed
-   * angle); grip: 0 open → 1 closed; thrum: chain vibration amplitude under load; winding: hoist motor running
-   * (0–1); time: seconds (for vibration).
+   * Pose the crane. bridgeX: bridge position; hoistZ: hoist along the bridge; hook: hook position (bridge-local,
+   * may swing away from under the hoist); attached: stone hanging in the slings or null; thrum: chain vibration
+   * amplitude under load; winding: hoist motor running (0–1); time: seconds (for vibration).
    */
-  function setRig({ bridgeX, hoistZ, hook: hk, target = null, grip = 0, thrum = 0, winding = 0, time = 0 }) {
+  function setRig({ bridgeX, hoistZ, hook: hk, attached = null, thrum = 0, winding = 0, time = 0 }) {
     gantry.position.x = bridgeX; hoist.position.z = hoistZ;
     hoist.position.y = winding * (Math.sin(time * 93) * 0.0011 + Math.sin(time * 57.3) * 0.0007);
-    _top.set(0, CHAIN_TOP + hoist.position.y, hoistZ); _ht.set(hk.x, hk.y + 0.02, hk.z);
+    _top.set(0, CHAIN_TOP + hoist.position.y, hoistZ); _ht.set(hk.x, hk.y + 0.1, hk.z);
     _d.subVectors(_ht, _top); const len = _d.length(); _d.normalize();
     _q.setFromUnitVectors(DOWN, _d);
     const n = Math.min(MAX_LINKS, Math.floor(len / LINK_PITCH));
@@ -382,12 +384,20 @@ export function createStage({ renderer, envMap, accent = '#00e5ff', maxShadow = 
     }
     chain.instanceMatrix.needsUpdate = true;
     hook.position.copy(hk); hook.quaternion.copy(_q);
-    const closed = target ? closedAngle(target) : 0.3;
-    const phi = GRAB.OPEN + (closed - GRAB.OPEN) * grip;
-    for (const t of tines) t.rotation.z = phi;
+    if (attached) {
+      const c = _p.set(attached.mesh.position.x - bridgeX, attached.mesh.position.y, attached.mesh.position.z);
+      const saddle = _ht.set(hk.x, hk.y - SADDLE, hk.z);
+      const v = _d.subVectors(saddle, c), H = v.length(), H0 = tautH(attached);
+      slingGroup.position.copy(c); slingGroup.quaternion.setFromUnitVectors(UP, v.normalize());
+      const slackQ = Math.round(Math.max(0, H0 - H) * 400);           // rebuild only when the slack changes
+      buildSlings(`a${attached.mass}:${slackQ}`, (plane) => slingCurve(attached.r + SLING_R, H0 - slackQ / 400, plane, H0));
+    } else {
+      slingGroup.position.set(hk.x, hk.y - SADDLE, hk.z); slingGroup.quaternion.copy(_q);   // hangs from the hook
+      buildSlings('free', (plane) => freeSlingCurve(plane));
+    }
   }
-  /** Grab geometry: chain-eye height for a stone held with its center at y. */
-  const hookYFor = (st, centerY) => centerY + st.r + HEAD;
+  /** Taut sling geometry: hook height for a stone hanging with its center at y. */
+  const hookYFor = (st, centerY) => centerY + tautH(st) + SADDLE;
 
   const supportAt = (st, x, z) => { const h = platW(st.r) / 2 + 0.02; return Math.abs(x - st.lane) < h && Math.abs(z) < h ? PLATFORM_H : 0; };
   /** Pose a stone by its center; contact shading and the contact shadow follow the gap to the support below. */
@@ -452,9 +462,6 @@ export function createStage({ renderer, envMap, accent = '#00e5ff', maxShadow = 
   key.castShadow = true; key.shadow.mapSize.set(maxShadow, maxShadow); key.shadow.bias = -0.00012; key.shadow.normalBias = 0.006; key.shadow.radius = 3;
   key.shadow.camera.near = 2; key.shadow.camera.far = 12;
   scene.add(key, key.target);
-  for (const x of [-3.2, -1.6, 1.6, 3.2]) {
-    const s = new THREE.SpotLight(0xffeedd, 55, 0, 0.3, 0.75, 2); s.position.set(x * 1.05, 6.2, 2.2); s.target.position.set(x, 0.8, 0.3); scene.add(s, s.target);
-  }
   for (const x of [-3.4, 3.6]) {
     const rim = new THREE.SpotLight(0xc9d8ff, 200, 0, 0.45, 0.8, 2); rim.position.set(x, 4.8, -3.8); rim.target.position.set(0, 1.2, 0.6); scene.add(rim, rim.target);
     const cone = lightCone({ height: 7.2, radius: 2.1, color: 0xb4c6ec, intensity: 0.04 });
@@ -499,14 +506,14 @@ export function createStage({ renderer, envMap, accent = '#00e5ff', maxShadow = 
     camera.position.set(camBase.x + focusX + dx, camBase.y + dy, camBase.z + dz);
     camera.lookAt(camTarget.x + focusX + dx * 0.4, camTarget.y + dy * 0.4, camTarget.z);
   }
-  const target = new THREE.Vector3(0, 1.95, 0.2), dir = new THREE.Vector3(-0.4, 0.06, 1).normalize();
+  const target = new THREE.Vector3(0, 1.85, 0.4), dir = new THREE.Vector3(-0.4, 0.06, 1).normalize();
   function frame(w, h) {
     const aspect = w / h, portrait = aspect < 1;
     camera.aspect = aspect; camera.fov = portrait ? 46 : 34;
-    const halfW = portrait ? 1.6 : 3.55, halfH = portrait ? 2.15 : 2.3;
+    const halfW = portrait ? 1.45 : 2.5, halfH = portrait ? 2.3 : 2.35;
     const tv = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), th = tv * aspect;
     const d = Math.max(halfW / th, halfH / tv);
-    const tgt = portrait ? new THREE.Vector3(0, 1.45, 0.35) : target;
+    const tgt = portrait ? new THREE.Vector3(0, 1.6, 0.45) : target;
     camera.position.copy(tgt).addScaledVector(dir, d);
     camera.lookAt(tgt);
     camBase.copy(camera.position); camTarget.copy(tgt);

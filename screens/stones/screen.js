@@ -20,7 +20,7 @@ const css = `
 #view-stones .st-top, #view-stones .st-bottom { display: flex; justify-content: space-between; gap: 1rem; }
 #view-stones .st-top { align-items: flex-start; } #view-stones .st-bottom { align-items: flex-end; }
 #view-stones .st-top > div:first-child, #view-stones .st-bottom > div:last-child { min-width: 0; }
-#view-stones .st-read, #view-stones .st-bar { flex: none; }
+#view-stones .st-read { flex: none; }
 #view-stones .st-title, #view-stones .st-sub { overflow: hidden; text-overflow: ellipsis; }
 #view-stones .st-title { white-space: nowrap; font-size: 1.15rem; font-weight: 600; margin-top: 0.35rem; letter-spacing: -0.01em; }
 #view-stones .st-title span { color: rgba(242,242,240,0.6); font-weight: 500; }
@@ -29,12 +29,14 @@ const css = `
 #view-stones .st-big .u { font-size: 0.34em; color: rgba(242,242,240,0.7); font-weight: 500; letter-spacing: 0; margin-left: 0.15em; }
 #view-stones .st-sub { color: rgba(242,242,240,0.62); font-size: 0.85rem; margin-top: 0.35rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
 #view-stones .st-gain { color: var(--accent-dark, var(--accent)); }
-#view-stones .st-bar { display: flex; gap: 6px; align-items: flex-end; }
-#view-stones .st-bar .s { width: 2.5rem; }
-#view-stones .st-bar .track { height: 3px; border-radius: 0; background: rgba(255,255,255,0.18); overflow: hidden; }
-#view-stones .st-bar .fill { height: 100%; width: 0; background: var(--accent-dark, var(--accent)); }
-#view-stones .st-bar .kg { font-family: var(--mono); font-size: 0.7rem; color: rgba(242,242,240,0.55); margin-top: 6px; font-variant-numeric: tabular-nums; }
-#view-stones .st-bar .s.cur .kg { color: #f2f2f0; }
+#view-stones .st-best { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(242,242,240,0.55); margin-top: 0.35rem; }
+#view-stones .st-rail { flex: 0 1 15rem; min-width: 8rem; }
+#view-stones .st-rv { font-size: 1.6rem; font-weight: 500; letter-spacing: -0.02em; }
+#view-stones .st-rv .u { font-size: 0.5em; color: rgba(242,242,240,0.7); margin-left: 0.15em; }
+#view-stones .st-rv .of { font-size: 0.5em; color: rgba(242,242,240,0.5); }
+#view-stones .st-rail .track { position: relative; height: 3px; background: rgba(255,255,255,0.16); margin-top: 0.45rem; }
+#view-stones .st-rail .track i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--accent-dark, var(--accent)); box-shadow: 0 0 10px var(--accent-dark, var(--accent)); }
+#view-stones .st-rail .track b { position: absolute; right: 0; top: -4px; width: 1px; height: 11px; background: rgba(242,242,240,0.6); }
 #view-stones .st-stat { text-align: right; }
 #view-stones .st-mid { flex: 1; display: flex; justify-content: center; align-items: flex-end; }
 #view-stones .st-snd { pointer-events: auto; width: 2.4rem; height: 2.4rem; border: 1px solid rgba(242,242,240,0.22); background: rgba(6,7,8,0.35); color: rgba(242,242,240,0.75); display: grid; place-items: center; cursor: pointer; }
@@ -46,7 +48,7 @@ const css = `
 #view-stones .st-loading { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: grid; place-items: center; color: rgba(242,242,240,0.6); font-size: 0.9rem; }
 #view-stones .st-fail { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: grid; place-items: center; padding: 1.5rem; text-align: center; color: #f2f2f0; }
 #view-stones .st-fail .msg { font-weight: 600; margin-bottom: 0.5rem; } #view-stones .st-fail .why { color: rgba(242,242,240,0.65); font-size: 0.85rem; font-family: var(--mono); word-break: break-word; max-width: 36rem; }
-@media (max-width: 560px) { #view-stones .st-hud { padding: 0.9rem 1rem; } #view-stones .st-title { font-size: 1rem; } #view-stones .st-bar .s { width: 1.8rem; } #view-stones .st-bar { gap: 4px; } #view-stones .st-stat .v { font-size: 1.25rem; } #view-stones .wide-only { display: none; } }
+@media (max-width: 560px) { #view-stones .st-hud { padding: 0.9rem 1rem; } #view-stones .st-title { font-size: 1rem; } #view-stones .st-stat .v, #view-stones .st-rv { font-size: 1.25rem; } #view-stones .st-rail { flex-basis: 9rem; } #view-stones .wide-only { display: none; } }
 `;
 
 export function mount(container, app) {
@@ -56,17 +58,17 @@ export function mount(container, app) {
     <div class="st-host"><div class="st-loading">Building the arena…</div></div>
     <div class="st-hud">
       <div class="st-top">
-        <div><div class="eyebrow">Atlas stones</div><div class="st-title" id="stTitle">Stone 1</div></div>
-        <div class="st-read"><div class="st-big num" id="stBig">0.00<span class="u">m</span></div><div class="st-sub" id="stSub">of 1.30 m</div></div>
+        <div><div class="eyebrow">Atlas stone</div><div class="st-title" id="stTitle">1,000 kg <span>to 1.30 m</span></div><div class="st-best num" id="stBest"></div></div>
+        <div class="st-read"><div class="st-big num" id="stBig">0:00.0</div><div class="st-sub num" id="stSub">lift time</div></div>
       </div>
       <div class="st-center" id="stCenter" hidden>
         <div class="msg" id="stMsg"></div><div class="hint" id="stHint"></div>
         <div class="row" style="justify-content:center"><button class="btn primary" id="stAction"></button></div>
       </div>
       <div class="st-bottom">
-        <div class="st-bar" id="stBar"></div>
+        <div class="st-rail"><div class="st-rv num"><span id="stH">0.00</span><span class="u">m</span><span class="of" id="stOf"> / 1.30</span></div><div class="track"><i id="stFill"></i><b></b></div><div class="st-sub num" id="stGain">&nbsp;</div></div>
         <div class="st-mid"><button class="st-snd" id="stSnd" title="Sound" aria-label="Sound"><svg class="on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 6.5a8 8 0 0 1 0 11"/></svg><svg class="off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 9l4 6M21 9l-4 6"/></svg></button></div>
-        <div class="st-stat"><div class="v" id="stTime">0:00.0</div><div class="st-sub" id="stTotal">0.0 kJ rowed</div></div>
+        <div class="st-stat"><div class="v num" id="stStrokes">0</div><div class="st-sub num" id="stTotal">strokes · 0.0 kJ</div></div>
       </div>
     </div>`;
   host = el.querySelector('.st-host'); hudEl = el.querySelector('.st-hud');
@@ -78,7 +80,6 @@ export function mount(container, app) {
   // sound: unlocked by the first tap anywhere (iOS requires a gesture), muted state remembered
   const snd = el.querySelector('#stSnd'); snd.dataset.muted = prefs.sound === false ? '1' : '0';
   snd.onclick = () => { const m = snd.dataset.muted !== '1'; snd.dataset.muted = m ? '1' : '0'; setPrefs({ sound: !m }); audio?.setMuted(m); if (!m) audio?.unlock(); };
-  document.addEventListener('pointerdown', () => { if (shown) audio?.unlock(); }, { passive: true });
   engine.on('conn', () => updateCenter());
 }
 
@@ -115,9 +116,8 @@ async function buildInner() {
 }
 function restart() {
   const [, stageMod, gameMod] = mods;
-  if (game) { stageMod.STONE_MASSES.forEach((_, i) => stage.placeStone(i, 'floor')); }
+  if (game) { stageMod.STONE_MASSES.forEach((_, i) => stage.placeStone(i, 'floor')); hud._fin = undefined; }
   game = gameMod.createStonesGame(stage, { onEvent: (n, S) => audio?.onEvent(n, S) });
-  el.querySelector('#stBar').innerHTML = stageMod.STONE_MASSES.map((m) => `<div class="s"><div class="track"><div class="fill"></div></div><div class="kg">${m}</div></div>`).join('');
   updateCenter();
 }
 function resize() { if (!gfx) return; const w = host.clientWidth, h = host.clientHeight; if (!w || !h) return; gfx.setSize(w, h); stage.frame(w, h); }
@@ -126,22 +126,28 @@ function updateCenter() {
   if (!el) return;
   const c = el.querySelector('#stCenter'), st = game?.state();
   let msg = '', hint = '', action = '';
-  if (!engine.connected) { msg = 'Connect your PM5 to start'; hint = engine.supported ? 'Every stroke lifts the stone by exactly work ÷ (m·g).' : 'No Bluetooth here — try it with the simulated erg.'; action = engine.supported ? 'Connect' : 'Try demo'; }
-  else if (st?.finished) { msg = `All five loaded in ${fmt(st.time)}`; hint = `${(st.total / 1000).toFixed(1)} kJ rowed`; action = 'Go again'; }
-  else if (st && !st.time && !st.total) { msg = ''; }
+  if (!engine.connected) { msg = 'Connect your PM5 to start'; hint = engine.supported ? 'Lift one tonne onto the platform. Every stroke raises it by exactly work ÷ (m·g).' : 'No Bluetooth here — try it with the simulated erg.'; action = engine.supported ? 'Connect' : 'Try demo'; }
+  else if (st?.finished) {
+    const best = prefs.stonesBest, isBest = best == null || st.time < best - 0.05;
+    if (isBest && !engine.simulated) setPrefs({ stonesBest: +st.time.toFixed(1) });
+    msg = `${isBest && best != null ? 'New best · ' : ''}${fmt(st.time)}`;
+    hint = `${st.strokes} strokes · ${(st.total / 1000).toFixed(1)} kJ · ${Math.round(st.total / Math.max(1, st.time))} W average${!isBest ? ` · best ${fmt(best)}` : ''}`;
+    action = 'Go again';
+  }
   c.hidden = !msg;
   if (msg) { el.querySelector('#stMsg').textContent = msg; el.querySelector('#stHint').textContent = hint; el.querySelector('#stAction').textContent = action; }
+  const b = el.querySelector('#stBest'); if (b) b.textContent = prefs.stonesBest != null ? `Best ${fmt(prefs.stonesBest)}` : '';
 }
-const fmt = (t) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
+const fmt = (t) => { const d = Math.round(t * 10); return `${Math.floor(d / 600)}:${((d % 600) / 10).toFixed(1).padStart(4, '0')}`; };
 function hud() {
-  const [, stageMod] = mods, st = game.state(), $ = (s) => el.querySelector(s);
-  const total = stageMod.STONE_MASSES.reduce((a, b) => a + b, 0);
-  $('#stTitle').innerHTML = st.finished ? `All five <span>· ${total.toLocaleString()} kg loaded</span>` : `Stone ${st.index + 1} <span>of 5 · ${st.mass} kg</span>`;
-  $('#stBig').innerHTML = `${st.height.toFixed(2)}<span class="u">m</span>`;
-  $('#stSub').innerHTML = `of ${stageMod.PLATFORM_H.toFixed(2)} m${st.lastGain ? ` · <span class="st-gain">+${st.lastGain.toFixed(2)} m</span><span class="wide-only"> last stroke</span>` : ''}`;
-  el.querySelectorAll('#stBar .s').forEach((b, i) => { b.querySelector('.fill').style.width = (st.progress[i] * 100).toFixed(0) + '%'; b.classList.toggle('cur', i === st.index); });
-  $('#stTime').textContent = fmt(st.time);
-  $('#stTotal').innerHTML = `${(st.total / 1000).toFixed(1)} kJ<span class="wide-only"> rowed</span>${st.bank > 30 ? `<span class="wide-only"> · ${Math.round(st.bank)} J banked</span>` : ''}`;
+  const [, stageMod] = mods, st = game.state(), $ = (q) => el.querySelector(q);
+  $('#stBig').textContent = fmt(st.time);
+  $('#stSub').textContent = st.finished || game.S.liftTime != null ? 'lift time' : st.time ? 'lifting' : 'starts on your first stroke';
+  $('#stH').textContent = st.height.toFixed(2); $('#stOf').textContent = ` / ${stageMod.PLATFORM_H.toFixed(2)}`;
+  $('#stFill').style.width = `${(Math.min(1, st.height / stageMod.PLATFORM_H) * 100).toFixed(1)}%`;
+  $('#stGain').innerHTML = st.lastGain && !st.finished ? `<span class="st-gain">+${(st.lastGain * 100).toFixed(1)} cm</span> last stroke` : '&nbsp;';
+  $('#stStrokes').textContent = st.strokes;
+  $('#stTotal').textContent = `strokes · ${(st.total / 1000).toFixed(1)} kJ`;
   if (st.finished !== hud._fin) { hud._fin = st.finished; updateCenter(); }
 }
 function loop(now) {
