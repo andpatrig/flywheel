@@ -11,19 +11,24 @@ import { createStrokeClock } from '../core/stroke-clock.js';
 import { workoutFromStatus, classify } from '../core/events.js';
 import { createBoatPanel, progressText } from './panels/boat.js';
 import { createCyclePanel, onPaceStreak } from './panels/cycle.js';
+import { createConsistencyPanel } from './panels/consistency.js';
+import { project } from './panels/projection.js';
+import { db } from '../core/store.js';
+import { personalBests, ofEvent, completed } from '../core/events.js';
 
 export const id = 'live';
 const root = document.documentElement;
-const PANELS = ['metrics', 'power', 'force', 'cycle', 'pace', 'map', 'boat'];
-const PANEL_NAME = { metrics: 'Metrics', power: 'Power', force: 'Force', cycle: 'Cycle', pace: 'Pace', map: 'Map', boat: 'Boat' };
-const LIVE_SVG = ['cycle', 'boat'];                     // drawn every frame while visible (not Plotly)
+const PANELS = ['metrics', 'proj', 'power', 'force', 'cycle', 'cons', 'pace', 'map', 'boat'];
+const PANEL_NAME = { metrics: 'Metrics', proj: 'Projection', power: 'Power', force: 'Force', cycle: 'Cycle', cons: 'Consistency', pace: 'Pace', map: 'Map', boat: 'Boat' };
+const LIVE_SVG = ['cycle', 'boat', 'cons', 'proj'];                     // drawn every frame while visible (not Plotly)
 const powerToPace = (w) => (w > 0 ? 500 * Math.cbrt(2.8 / w) : null);
 const UNITS = ['pace', 'watts', 'cal'];
 const UNIT_NAME = { pace: '/500m', watts: 'Watts', cal: 'Cal/hr' };
 
-let shown = false, PLOT = null, boat = null, cyc = null, clock = createStrokeClock(), anim = 0, animLast = 0, streak = 0, streakFired = false;
+let shown = false, PLOT = null, boat = null, cyc = null, cons = null, best = { key: null, session: null }, appRef = null, clock = createStrokeClock(), anim = 0, animLast = 0, streak = 0, streakFired = false;
 
-export function mount(el) {
+export function mount(el, app) {
+  appRef = app;
   el.innerHTML = html;
   PLOT = { power: $('pwrPlot'), force: $('forcePlot'), pace: $('pacePlot'), map: $('mapPlot') };
 
@@ -55,8 +60,13 @@ export function mount(el) {
 
   // pace boat and stroke cycle: SVG instruments, one shared target pace
   $('pips').innerHTML = PANELS.map(() => '<i></i>').join('');
-  boat = createBoatPanel($('boatPlot')); cyc = createCyclePanel($('cycPlot'));
-  const svgRo = new ResizeObserver(() => { boat.resize(); cyc.resize(); }); svgRo.observe($('boatPlot')); svgRo.observe($('cycPlot'));
+  boat = createBoatPanel($('boatPlot')); cyc = createCyclePanel($('cycPlot')); cons = createConsistencyPanel($('csPlot'));
+  const svgRo = new ResizeObserver(() => { boat.resize(); cyc.resize(); cons.resize(); }); for (const id of ['boatPlot', 'cycPlot', 'csPlot']) svgRo.observe($(id));
+  // piece complete: a summary over the display as soon as the session is saved
+  engine.on('saved', ({ session }) => showDone(session));
+  $('dcClose').onclick = (e) => { e.stopPropagation(); $('doneCard').hidden = true; };
+  $('dcReport').onclick = (e) => { e.stopPropagation(); $('doneCard').hidden = true; appRef?.show('history'); appRef?.openSession?.(doneId); };
+  $('doneCard').onclick = (e) => e.stopPropagation();
   el.querySelectorAll('[data-step]').forEach((st) => st.addEventListener('click', (e) => {
     const b = e.target.closest('[data-d]'); e.stopPropagation(); if (!b) return;
     prefs.targetPace = Math.max(60, Math.min(300, Math.round((targetPace() - +b.dataset.d) * 10) / 10)); savePrefs(); syncTarget(); recount();
@@ -81,8 +91,13 @@ function animate(now) {
   if (!shown || !LIVE_SVG.includes(prefs.panel)) return;
   const dt = Math.min(0.1, (now - (animLast || now)) / 1000); animLast = now;
   const L = engine.latest, C = clock.update(L, dt), active = engine.connected && C.active;
-  const w = workoutFromStatus(L), target = w ? classify({ workout: w }).target : null;
-  if (prefs.panel === 'boat') {
+  const w = workoutFromStatus(L), ev = w ? classify({ workout: w }) : null, target = ev?.target ?? null;
+  if (prefs.panel === 'proj') renderProj(ev, L);
+  else if (prefs.panel === 'cons') {
+    const r = cons.render(engine.session?.strokes ?? [], engine.avgCurve());
+    $('csNow').textContent = r.score != null ? Math.round(r.score) : '–';
+    $('csSub').textContent = r.n ? `last ${r.n} strokes${r.cv != null ? ` · power varies ±${(r.cv * 100).toFixed(1)} %` : ''}` : 'last 20 strokes';
+  } else if (prefs.panel === 'boat') {
     const my = L.distance || 0, el = L.elapsed || 0, opp = el * 500 / targetPace(), gap = my - opp;
     boat.render({ my, opp, u: clock.u(), drive: active && C.phase < C.driveFrac, dt, spm: L.strokeRate || 24, target });
     const v = my > 0 && el > 0 ? my / el : 500 / targetPace();
@@ -98,9 +113,43 @@ function animate(now) {
     cyc.render({ curves, avgCurve: engine.avgCurve(), driveFrac: C.driveFrac, phase: C.phase, active, streak, hub, dt, fired: streakFired });
     streakFired = false;
     $('cycNow').textContent = streak;
+    const pk = L.curvePeak, side = [['Peak force', pk ? `${Math.round(pk)}` : '–', 'N'], ['Drive', L.driveTime ? L.driveTime.toFixed(2) : '–', 's'], ['Recovery', L.recoveryTime ? L.recoveryTime.toFixed(2) : '–', 's'], ['Rate', L.strokeRate || '–', 'spm']];
+    const sig = side.map((x) => x[1]).join('|'); if (sig !== $('cycSide').dataset.sig) { $('cycSide').dataset.sig = sig; $('cycSide').innerHTML = side.map(([k, v, u]) => `<div><dt>${k}</dt><dd class="num">${v}<span class="u">${u}</span></dd></div>`).join(''); }
     $('cycSub').textContent = L.driveTime > 0 ? `ratio 1 : ${(L.recoveryTime / L.driveTime).toFixed(1)} · drive ${L.driveTime.toFixed(2)} s` : 'drive and recovery as one turn';
   }
   anim = requestAnimationFrame(animate);
+}
+/** Your best of the piece on the monitor, looked up once per piece. */
+function bestFor(ev) {
+  if (!ev?.target || best.key === ev.key) return best.session;
+  best = { key: ev.key, session: null };
+  db.all().then((all) => { if (best.key === ev.key) best.session = personalBests(ofEvent(all, ev.key).filter(completed)).get(ev.key) || null; }).catch(() => {});
+  return null;
+}
+function renderProj(ev, L) {
+  const pr = ev?.target ? project({ target: ev.target, best: bestFor(ev), L, strokes: engine.session?.strokes ?? [] }) : null;
+  $('proj').hidden = !ev?.target; $('projEmpty').hidden = !!ev?.target;
+  if (!ev?.target) return;
+  $('prSub').textContent = `${ev.label} · at your pace over the last 20 s`;
+  $('prK').textContent = pr?.bigK ?? (ev.target.distance ? 'Projected finish' : 'Projected distance');
+  $('prBig').textContent = pr?.big ?? '–';
+  $('prDelta').textContent = pr?.delta ? `${pr.delta} vs best` : (pr && !pr.best ? 'no best yet for this piece' : '\u00a0');
+  $('prDelta').classList.toggle('ahead', !!pr?.ahead);
+  $('prBestK').textContent = `Best ${ev.label}`; $('prBest').textContent = pr?.best ?? '–';
+  $('prNeed').textContent = pr?.need ?? '–'; $('prNeedK').textContent = pr?.need && pr.need.includes(':') ? `/500m ${pr.needK}` : '';
+  $('prNow').textContent = pr?.now ?? '–';
+  $('prFill').style.width = `${(Math.min(1, Math.max(0, pr?.frac ?? 0)) * 100).toFixed(1)}%`;
+}
+let doneId = null;
+function showDone(sess) {
+  const m = sess.summary; if (!m || !(m.distance > 0)) return;
+  doneId = sess.id;
+  const ev = classify(sess);
+  $('dcK').textContent = `${ev.label} · complete`;
+  $('dcBig').textContent = ev.target?.time ? `${fmtInt(m.distance)} m` : fmtTime(m.elapsed, 1);
+  const cells = [['Pace', fmtPace(m.avgPace), '/500m'], ['Power', fmtInt(m.avgPower), 'W'], ['Rate', m.avgSpm ? m.avgSpm.toFixed(1) : '–', 'spm'], ['Strokes', m.strokes, ''], [ev.target?.time ? 'Time' : 'Distance', ev.target?.time ? fmtTime(m.elapsed) : fmtInt(m.distance), ev.target?.time ? '' : 'm'], ['Work', (m.work / 1000).toFixed(1), 'kJ']];
+  $('dcGrid').innerHTML = cells.map(([k, v, u]) => `<div><div class="k">${k}</div><div class="v num">${v}<span class="u">${u}</span></div></div>`).join('');
+  $('doneCard').hidden = false;
 }
 const kick = () => { if (!anim && shown && LIVE_SVG.includes(prefs.panel)) { animLast = 0; anim = requestAnimationFrame(animate); } };
 export function show() { shown = true; markAll(); kick(); }
@@ -112,7 +161,7 @@ export function setPanel(p, persist = true) {
   prefs.panel = p; if (persist) savePrefs();
   document.querySelectorAll('#display .panel').forEach((el) => el.classList.toggle('active', el.dataset.panel === p));
   $('displayName').textContent = PANEL_NAME[p];
-  if (LIVE_SVG.includes(p)) { boat?.resize(); cyc?.resize(); kick(); }
+  if (LIVE_SVG.includes(p)) { boat?.resize(); cyc?.resize(); cons?.resize(); kick(); }
   document.querySelectorAll('.pips i').forEach((el, i) => el.classList.toggle('on', PANELS[i] === p));
   mark(p);
 }
@@ -129,7 +178,9 @@ function renderMetrics() {
   const lbl = { pace: ['Pace', '/500m'], watts: ['Power', 'watts'], cal: ['Energy', 'cal/hr'] }[u];
   $('heroLbl').innerHTML = `${lbl[0]} <span>${lbl[1]}</span>`;
   $('heroVal').textContent = u === 'pace' ? fmtPace(L.pace) : u === 'watts' ? fmtInt(L.power) : fmtInt(L.calsPerHour);
-  $('heroSub').textContent = u === 'pace' ? `avg ${fmtPace(L.avgPace)}` : u === 'watts' ? `avg ${fmtInt(L.avgPower)} W` : `${fmtInt(L.totalCalories)} kcal total`;
+  const pwk = workoutFromStatus(L), pt = pwk ? classify({ workout: pwk }).target : null;
+  const toGo = pt?.distance ? ` · ${fmtInt(Math.max(0, pt.distance - (L.distance || 0)))} m to go` : pt?.time ? ` · ${fmtTime(Math.max(0, pt.time - (L.elapsed || 0)))} to go` : '';
+  $('heroSub').textContent = (u === 'pace' ? `avg ${fmtPace(L.avgPace)}` : u === 'watts' ? `avg ${fmtInt(L.avgPower)} W` : `${fmtInt(L.totalCalories)} kcal total`) + toGo;
   if (u === 'watts') { $('mAltLbl').textContent = 'Pace'; $('mAlt').textContent = fmtPace(L.pace); $('mAltU').textContent = '/500m'; }
   else { $('mAltLbl').textContent = 'Power'; $('mAlt').textContent = fmtInt(L.power); $('mAltU').textContent = 'W'; }
   $('mSpm').textContent = L.strokeRate ?? '–';

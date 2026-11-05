@@ -12,7 +12,7 @@ import * as stones from './screens/stones/screen.js';
 import * as tug from './screens/tug/screen.js';
 
 const SCREENS = { live, stones, tug, history, about };
-const app = { startDemo, show: showScreen };
+const app = { startDemo, show: showScreen, openSession: (id) => history.openById(id) };
 let active = null;
 
 // ---------- screens
@@ -83,7 +83,7 @@ applyPrefs();
 showScreen('live');
 // Service worker: check for a new version on launch and whenever the app comes back to the foreground;
 // when a new version takes over, reload once so the new code is what's running.
-export const APP_VERSION = 'v16';
+export const APP_VERSION = 'v18';
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   const hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {

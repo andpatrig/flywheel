@@ -1,6 +1,11 @@
 // markup for the live screen
 export default `
       <div class="display" id="display">
+        <div class="done" id="doneCard" hidden><div class="dc">
+          <div class="eyebrow" id="dcK">Piece complete</div><div class="dcbig num" id="dcBig"></div>
+          <div class="dcgrid" id="dcGrid"></div>
+          <div class="row"><button class="btn" id="dcClose">Close</button><button class="btn primary" id="dcReport">Session report</button></div>
+        </div></div>
         <article class="panel" data-panel="metrics">
           <div class="hero">
             <div class="hero-top"><div class="eyebrow" id="heroLbl">Pace <span>/500m</span></div><span class="phase" id="phase">Ready</span></div>
@@ -21,6 +26,21 @@ export default `
           </div>
         </article>
 
+        <article class="panel" data-panel="proj">
+          <div class="ph"><div><div class="pt">Projection</div><div class="ps" id="prSub">at your pace over the last 20 s</div></div></div>
+          <div class="proj" id="proj">
+            <div class="prmain"><div class="eyebrow" id="prK">Projected finish</div><div class="prbig num" id="prBig">–:––.–</div><div class="prdelta num" id="prDelta">&nbsp;</div></div>
+            <div class="prrows">
+              <div class="prr"><span class="k" id="prBestK">Best</span><span class="v num" id="prBest">–</span></div>
+              <div class="prr"><span class="k">Pace to beat it</span><span class="v num" id="prNeed">–</span><span class="d" id="prNeedK"></span></div>
+              <div class="prr"><span class="k">Current pace</span><span class="v num" id="prNow">–</span><span class="d">last 20 s</span></div>
+            </div>
+            <div class="prbar"><i id="prFill"></i></div>
+          </div>
+          <div class="proj-empty" id="projEmpty">Program a single distance or time on the PM5 to see where this piece is heading.</div>
+          <p class="how">The projection assumes your recent pace is held to the end. The pace to beat your best is what the rest of the piece needs: if it is slower than your current pace, you have margin.</p>
+        </article>
+
         <article class="panel" data-panel="power">
           <div class="ph"><div><div class="pt">Power</div><div class="ps num" id="pwrSub">per stroke</div></div>
             <div class="ro num"><span id="pwrNow">–</span><span class="u">W</span></div></div>
@@ -33,10 +53,19 @@ export default `
           <div class="plot" id="forcePlot"></div>
         </article>
 
-        <article class="panel" data-panel="cycle">
+        <article class="panel" data-panel="cycle"><div class="inst">
           <div class="ph"><div><div class="pt">Stroke cycle</div><div class="ps num" id="cycSub">drive and recovery as one turn</div></div>
-            <div class="rcol"><div class="ro num"><span id="cycNow">0</span><span class="u">on pace</span></div><div class="step" data-step><button type="button" data-d="-1" aria-label="Slower target">−</button><span class="num" data-tgt>2:00.0</span><button type="button" data-d="1" aria-label="Faster target">+</button></div></div></div>
+            <div class="rcol"><div class="ro num"><span id="cycNow">0</span><span class="u">at target</span></div><div class="step" data-step><button type="button" data-d="-1" aria-label="Slower target">−</button><span class="num" data-tgt>2:00.0</span><button type="button" data-d="1" aria-label="Faster target">+</button></div></div></div>
           <div class="plot svgplot" id="cycPlot"></div>
+          <dl class="side" id="cycSide"></dl>
+          <p class="how">The petal is the last drive's handle force (dashed: your average). The segments count strokes in a row at or faster than the target pace.</p>
+        </div></article>
+
+        <article class="panel" data-panel="cons">
+          <div class="ph"><div><div class="pt">Consistency</div><div class="ps num" id="csSub">last 20 strokes</div></div>
+            <div class="ro num"><span id="csNow">–</span><span class="u">%</span></div></div>
+          <div class="plot svgplot" id="csPlot"></div>
+          <p class="how">Each tile is one stroke's force curve over your session average (dashed). The score is how closely it matches: higher means more repeatable strokes.</p>
         </article>
 
         <article class="panel" data-panel="pace">
@@ -50,14 +79,14 @@ export default `
             <div class="ro num"><span id="mapNow">–</span><span class="u">% peak</span></div></div>
           <div class="plot" id="mapPlot"></div>
         </article>
-        <article class="panel" data-panel="boat">
+        <article class="panel" data-panel="boat"><div class="inst">
           <div class="ph"><div><div class="pt">Pace boat</div><div class="ps num" id="boatSub">a boat at your target pace</div></div>
             <div class="rcol"><div class="ro num"><span id="boatNow">0.0</span><span class="u" id="boatU">m</span></div><div class="step" data-step><button type="button" data-d="-1" aria-label="Slower target">−</button><span class="num" data-tgt>2:00.0</span><button type="button" data-d="1" aria-label="Faster target">+</button></div></div></div>
           <div class="plot svgplot" id="boatPlot"></div>
           <div class="pbar"><div class="pl"><span class="k" id="pbLk">Covered</span><span class="v num" id="pbL">0 m</span></div>
             <div class="track"><i id="pbFill"></i><b id="pbOpp"></b></div>
             <div class="pr"><span class="k" id="pbRk">To go</span><span class="v num" id="pbR">–</span></div></div>
-        </article>
+        </div></article>
       </div>
 
       <footer class="controls">

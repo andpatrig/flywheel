@@ -13,12 +13,13 @@ export default `
           <div class="dhead"><div><h1 id="dTitle"></h1><div class="meta" id="dMeta"></div></div></div>
           <div class="stats" id="dStats"></div>
           <div class="agrid">
-            <div class="card span2"><h2>Pace, rate &amp; heart rate</h2><div class="sub">aligned on elapsed time · faster pace is up</div><div class="hplot tall" id="hTrend"></div></div>
-            <div class="card"><h2>Splits</h2><div class="sub" id="hSplitsSub">pace per split</div><div class="hplot" id="hSplits"></div></div>
-            <div class="card"><h2>Power distribution</h2><div class="sub" id="hHistSub">strokes by watts · band = mean ± 1σ</div><div class="hplot" id="hHist"></div></div>
-            <div class="card"><h2>Force curve</h2><div class="sub">mean ± 1σ, first vs. last quarter of the session</div><div class="hplot" id="hForce"></div></div>
-            <div class="card"><h2>Rate vs. power</h2><div class="sub">each stroke · color = elapsed time</div><div class="hplot" id="hScatter"></div></div>
-            <div class="card"><h2>Stroke map</h2><div class="sub">handle force through the drive, every stroke · dots = peak timing</div><div class="hplot" id="hMap"></div></div>
+            <div class="card span2"><h2>Pace, rate &amp; heart rate</h2><div class="sub">aligned on elapsed time</div><div class="hplot tall" id="hTrend"></div><p class="how">Faster pace is higher on the chart. A flat pace line means an evenly paced piece; a line that drops toward the end means pace faded.</p></div>
+            <div class="card"><h2>Splits</h2><div class="sub" id="hSplitsSub">pace per split</div><div class="hplot" id="hSplits"></div><p class="how">Higher points are faster splits. Splits close to the dotted average mean even pacing.</p></div>
+            <div class="card"><h2>Power distribution</h2><div class="sub" id="hHistSub">strokes by watts · band = mean ± 1σ</div><div class="hplot" id="hHist"></div><p class="how">A narrow peak means strokes of similar power; a lower CV (spread relative to the mean) means more consistent power.</p></div>
+            <div class="card"><h2>Force curve</h2><div class="sub">mean ± 1σ, first vs. last quarter of the session</div><div class="hplot" id="hForce"></div><p class="how">If the last quarter sits below the first, force fell with fatigue. A peak that moves later in the drive means the catch got softer.</p></div>
+            <div class="card"><h2>Effective work</h2><div class="sub">joules per stroke at each stroke rate · line = median</div><div class="hplot" id="hEff"></div><p class="how">Higher means more work per stroke. If the line falls as rate rises, extra rate shortened the strokes rather than adding power; a flat or rising line means rate added power.</p></div>
+            <div class="card"><h2>Stroke map</h2><div class="sub">handle force through the drive, every stroke · dots = peak timing</div><div class="hplot" id="hMap"></div><p class="how">Each row is a stroke; brighter is more force. Dots lining up vertically mean the peak arrives at the same point of every drive.</p></div>
+            <div class="card span2"><h2>Split table</h2><div class="sub" id="hSplitTSub">per split</div><div class="tscroll"><table class="splits" id="hSplitT"></table></div><p class="how">Distance per stroke (m) is how far the boat runs per stroke; at the same rate, higher means more effective strokes.</p></div>
             <div class="card"><h2>Details</h2><table id="dTable"></table></div>
           </div>
         </div>

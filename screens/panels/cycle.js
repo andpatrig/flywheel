@@ -24,6 +24,7 @@ export function createCyclePanel(host) {
   const segs = mk('g', {}, g), segEls = Array.from({ length: SEGS }, () => mk('path', { class: 'cy-seg' }, segs));
   const pulse = mk('circle', { class: 'cy-pulse', fill: 'none' }, g);
   const hand = mk('line', { class: 'cy-hand' }, g), handDot = mk('circle', { class: 'cy-hand-dot' }, g);
+  const segLbl = mk('text', { class: 'cy-lbl', 'text-anchor': 'middle' }, g);
   const catchLbl = mk('text', { class: 'cy-lbl', 'text-anchor': 'middle' }, g), finLbl = mk('text', { class: 'cy-lbl' }, g), recLbl = mk('text', { class: 'cy-lbl dim', 'text-anchor': 'middle' }, g);
   const hubV = mk('text', { class: 'cy-hub', 'text-anchor': 'middle', 'dominant-baseline': 'alphabetic' }, g);
   const hubU = mk('text', { class: 'cy-hub-u', 'text-anchor': 'middle' }, g);
@@ -34,7 +35,7 @@ export function createCyclePanel(host) {
     const r = host.getBoundingClientRect(); W = Math.max(1, r.width); H = Math.max(1, r.height);
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     fs = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-    R = Math.max(40, Math.min(W, H) / 2 - fs * 2.1); r0 = R * 0.46; cx = W / 2; cy = H / 2;
+    R = Math.max(40, Math.min(W / 2 - fs * 2.1, H / 2 - fs * 2.6)); cy = H / 2 - fs * 0.35; r0 = R * 0.46; cx = W / 2;
   }
   const P = (a, r) => [cx + r * Math.sin(a), cy - r * Math.cos(a)];            // angle from 12 o'clock, clockwise
   const arcPath = (a0, a1, r) => { const [x0, y0] = P(a0, r), [x1, y1] = P(a1, r); return `M${x0.toFixed(1)},${y0.toFixed(1)}A${r},${r} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${x1.toFixed(1)},${y1.toFixed(1)}`; };
@@ -63,11 +64,15 @@ export function createCyclePanel(host) {
     driveBand.setAttribute('d', ring(0, A, r0, R));
     // force grid over the drive: rings at round newtons, a radial at each quarter of the drive
     grid.textContent = '';
-    const step = fMax > 1200 ? 400 : fMax > 600 ? 200 : 100;
-    for (let f = step; f < fMax; f += step) {
+    // at most three rings at a round step, labelled along the catch line (outside the drive), never closer than a line of text
+    const step = [100, 200, 250, 500, 1000, 2000].find((v) => fMax / v <= 3.2) ?? 2000;
+    let lastR = r0, lastT = null;
+    for (let f = step; f < fMax * 0.97; f += step) {
       const rr = r0 + (R - r0) * f / fMax; mk('path', { d: arcPath(0, A, rr), class: 'cy-gl' }, grid);
-      const [lx, ly] = P(A + 0.03, rr); const t = mk('text', { x: lx.toFixed(1), y: ly.toFixed(1), class: 'cy-gt', 'font-size': (0.62 * fs).toFixed(1), 'dominant-baseline': 'middle' }, grid); t.textContent = `${f}`;
+      if (rr - lastR < fs * 0.95) continue; lastR = rr;
+      const [lx, ly] = P(0, rr); lastT = mk('text', { x: (lx - fs * 0.35).toFixed(1), y: ly.toFixed(1), class: 'cy-gt', 'font-size': (0.6 * fs).toFixed(1), 'dominant-baseline': 'middle', 'text-anchor': 'end' }, grid); lastT.textContent = `${f}`;
     }
+    if (lastT) lastT.textContent += ' N';                                   // the unit once, on the outermost ring
     for (let q = 0; q <= 4; q++) { const a = A * q / 4, [x0, y0] = P(a, r0), [x1, y1] = P(a, R); mk('line', { x1: x0, y1: y0, x2: x1, y2: y1, class: q % 4 === 0 ? 'cy-gl strong' : 'cy-gl' }, grid); }
     // previous strokes, average, the last stroke
     const prev = curves.slice(-1 - GHOSTS, -1);
@@ -90,8 +95,13 @@ export function createCyclePanel(host) {
     // labels
     const lr = R + fs * 1.55;
     let [lx, ly] = P(0, lr); catchLbl.setAttribute('x', lx); catchLbl.setAttribute('y', ly - fs * 0.1); catchLbl.setAttribute('font-size', (0.66 * fs).toFixed(1)); catchLbl.textContent = 'CATCH';
-    [lx, ly] = P(A, lr); finLbl.setAttribute('x', lx); finLbl.setAttribute('y', ly); finLbl.setAttribute('font-size', (0.66 * fs).toFixed(1)); finLbl.setAttribute('text-anchor', A < Math.PI ? 'start' : 'end'); finLbl.setAttribute('dominant-baseline', 'middle'); finLbl.textContent = 'FINISH';
+    [lx, ly] = P(A, lr); const tooFar = A < Math.PI && lx > W - fs * 4.2;   // keep FINISH inside the panel
+    finLbl.setAttribute('x', tooFar ? W - 2 : lx); finLbl.setAttribute('y', tooFar ? ly + fs * 0.9 : ly); finLbl.setAttribute('font-size', (0.66 * fs).toFixed(1)); finLbl.setAttribute('text-anchor', tooFar || A >= Math.PI ? 'end' : 'start'); finLbl.setAttribute('dominant-baseline', 'middle'); finLbl.textContent = 'FINISH';
     [lx, ly] = P(A + (Math.PI * 2 - A) / 2, r0 * 0.62 + R * 0.38); recLbl.setAttribute('x', lx); recLbl.setAttribute('y', ly); recLbl.setAttribute('font-size', (0.62 * fs).toFixed(1)); recLbl.setAttribute('dominant-baseline', 'middle'); recLbl.textContent = 'RECOVERY';
+    // what the ten segments mean, written under the ring
+    [lx, ly] = P(Math.PI, sr1 + fs * 0.6); segLbl.setAttribute('x', lx); segLbl.setAttribute('y', ly); segLbl.setAttribute('dominant-baseline', 'hanging'); segLbl.setAttribute('font-size', (0.62 * fs).toFixed(1));
+    segLbl.textContent = streak > SEGS ? `${streak} IN A ROW AT TARGET` : `${streak} / ${SEGS} IN A ROW AT TARGET`;
+    segLbl.classList.toggle('on', streak > 0);
     // hub
     const hs = Math.min(r0 * 0.62, fs * 3);
     hubV.setAttribute('x', cx); hubV.setAttribute('y', (cy + hs * 0.22).toFixed(1)); hubV.setAttribute('font-size', hs.toFixed(1)); hubV.textContent = hub.value ?? '–';

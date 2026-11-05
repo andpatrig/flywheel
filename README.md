@@ -57,7 +57,7 @@ elapsed time; and the full-session stroke map.
 
 ## Displays (Live tab — tap anywhere to cycle)
 
-Metrics · Power · Force · **Cycle** · Pace · Map · **Boat**. One display at a time on every screen, so a TV over
+Metrics · **Projection** · Power · Force · **Cycle** · **Consistency** · Pace · Map · **Boat**. One display at a time on every screen, so a TV over
 AirPlay gets the same layout bigger.
 
 - **Cycle** — the stroke as a circle: catch at twelve o'clock, the drive's arc sized by your drive : recovery
@@ -66,7 +66,12 @@ AirPlay gets the same layout bigger.
   the target pace; ten in a row closes the ring.
 - **Boat** — a top view of the course with a pace boat at your target pace; gap in metres and seconds,
   covered and to go for the piece programmed on the PM5. Runs vertically on a phone held upright.
-- The target pace (− / +) is shared by both.
+- **Projection** — for a distance or time programmed on the PM5: projected finish (or distance) at your pace over
+  the last 20 s, your best for that piece, and the pace the rest of the piece needs to beat it.
+- **Consistency** — your last 20 force curves over the session average, each with a match score; the headline is
+  the average score.
+- The target pace (− / +) is shared by Cycle and Boat. When the monitor ends a piece, a summary card opens over
+  the display with a link to the session report.
 
 ## Games
 
@@ -78,6 +83,8 @@ AirPlay gets the same layout bigger.
   wins. The row is saved like any other session.
 
 History groups sessions by event (2k, 5k, 30 min, intervals, just row) as reported by the PM5, with personal bests.
+Each session opens a report: pace/rate/heart rate, splits (chart and table), power distribution, force curve first
+vs. last quarter, effective work (joules per stroke against rate) and the stroke map, each with a line on how to read it.
 
 ## Hosting (5 minutes, free)
 

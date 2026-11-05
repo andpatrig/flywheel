@@ -5,7 +5,7 @@ import { $, toast, twoTap } from '../core/ui.js';
 import { fmtPace, fmtTime, fmtInt } from '../core/format.js';
 import { db, sessionJSON, exportFile, fileStamp } from '../core/store.js';
 import { classify, personalBests, completed } from '../core/events.js';
-import { chartFs, trendFig, splitsFig, histFig, forceBandFig, scatterFig, mapFig, draw } from '../core/charts.js';
+import { chartFs, trendFig, splitsFig, histFig, forceBandFig, effFig, computeSplits, mapFig, draw } from '../core/charts.js';
 
 export const id = 'history';
 let shown = false, openSession = null, filter = 'all';
@@ -33,6 +33,8 @@ export function mount(el) {
   addEventListener('resize', () => { clearTimeout(rsz); rsz = setTimeout(() => { if (shown && openSession) renderDetail(openSession); }, 120); });
 }
 export function show() { shown = true; render(); }
+/** Open one session's report (from the Live screen's completion card). */
+export async function openById(id) { const all = await db.all(); openSession = all.find((s) => s.id === id) || null; render(); }
 export function hide() { shown = false; }
 
 async function render() {
@@ -87,6 +89,14 @@ function renderDetail(s) {
   const hi = histFig(s.strokes, o('hHist')); draw($('hHist'), hi.fig, true);
   $('hHistSub').textContent = hi.m ? `σ ${hi.sd.toFixed(1)} W · CV ${(hi.cv * 100).toFixed(1)}% · band = mean ± 1σ` : 'strokes by watts';
   draw($('hForce'), forceBandFig(s.strokes, s.avgCurve, o('hForce')), true);
-  draw($('hScatter'), scatterFig(s.strokes, o('hScatter')), true);
+  draw($('hEff'), effFig(s.strokes, o('hEff')), true);
+  // split table: one row per split, with the session average underneath
+  const { L: SL, out: SP } = computeSplits(s.strokes);
+  $('hSplitTSub').textContent = SL ? `${SL} m splits` : 'per split';
+  const row = (c) => `<tr>${c.map((v, i) => `<td${i ? ' class="num"' : ''}>${v}</td>`).join('')}</tr>`;
+  $('hSplitT').innerHTML = SP.length ? `<thead><tr><th>Split</th><th>Time</th><th>Pace</th><th>Watts</th><th>Rate</th><th>Strokes</th><th>m / stroke</th></tr></thead><tbody>`
+    + SP.map((x) => row([`${fmtInt(x.end)} m`, fmtTime(x.time, 1), fmtPace(x.pace), x.watts ? Math.round(x.watts) : '–', x.spm ? x.spm.toFixed(1) : '–', x.strokes || '–', x.strokes ? (SL / x.strokes).toFixed(1) : '–'])).join('')
+    + `</tbody><tfoot>${row(['Total', fmtTime(m.elapsed, 1), fmtPace(m.avgPace), m.avgPower ? Math.round(m.avgPower) : '–', m.avgSpm ? m.avgSpm.toFixed(1) : '–', m.strokes, m.strokes ? (m.distance / m.strokes).toFixed(1) : '–'])}</tfoot>`
+    : '<tbody><tr><td>Row at least 50 m for splits</td></tr></tbody>';
   draw($('hMap'), mapFig(s.strokes, o('hMap')), true);
 }

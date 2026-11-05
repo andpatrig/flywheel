@@ -184,7 +184,8 @@ function computeSplits(strokes) {
     while (pts[i].distance >= k * L) {
       const a = pts[i - 1], b = pts[i], f = (k * L - a.distance) / ((b.distance - a.distance) || 1), tk = a.elapsed + f * (b.elapsed - a.elapsed);
       const seg = d.slice(Math.max(0, from - 1), i).filter((s) => s.power > 0);
-      out.push({ n: k, end: k * L, time: tk - prevT, pace: ((tk - prevT) / L) * 500, watts: mean(seg.map((s) => s.power)), spm: mean(seg.map((s) => s.spm).filter(Boolean)) });
+      const all = d.slice(from, i);                                  // strokes taken within this split
+      out.push({ n: k, end: k * L, time: tk - prevT, pace: ((tk - prevT) / L) * 500, watts: mean(seg.map((s) => s.power)), spm: mean(seg.map((s) => s.spm).filter(Boolean)), strokes: all.length, work: all.reduce((a, s) => a + (s.workPerStroke || 0), 0) });
       prevT = tk; from = i; k++;
     }
   }
@@ -253,6 +254,26 @@ function scatterFig(strokes, { w, h, fs }) {
   return { data, layout: baseLayout(t, w, h, fs, xa, ya, { margin: { r: Math.round(fs * 4) } }) };
 }
 
+// ---- history: effective work — joules per stroke against stroke rate, with the median at each rate
+function effFig(strokes, { w, h, fs }) {
+  const t = T(), d = strokes.filter((s) => s.workPerStroke > 0 && s.spm > 0);
+  if (d.length < 5) return emptyFig(t, w, h, fs, 'Not enough strokes');
+  const jit = (i) => (((i * 37) % 11) - 5) / 28;
+  const rates = [...new Set(d.map((s) => s.spm))].sort((a, b) => a - b);
+  const med = rates.map((r) => { const v = d.filter((s) => s.spm === r).map((s) => s.workPerStroke).sort((a, b) => a - b); return { r, n: v.length, m: v[Math.floor(v.length / 2)] }; }).filter((x) => x.n >= 3);
+  const data = [
+    { type: 'scatter', mode: 'markers', x: d.map((s, i) => s.spm + jit(i)), y: d.map((s) => s.workPerStroke),
+      marker: { size: DOT(fs), color: hexA(t.accent, 0.42), line: { width: 0 } },
+      customdata: d.map((s) => [s.strokeCount, s.spm, fmtTime(s.elapsed)]),
+      hovertemplate: 'Stroke %{customdata[0]} · %{customdata[2]}<br><b>%{y:.0f} J</b> at %{customdata[1]} spm<extra></extra>' },
+    { type: 'scatter', mode: 'lines+markers', x: med.map((x) => x.r), y: med.map((x) => x.m), line: { color: t.ink, width: 1.6 },
+      marker: { size: DOT(fs) * 1.2, color: t.ink, line: { color: t.surface, width: 1.5 } }, hovertemplate: 'median at %{x} spm: <b>%{y:.0f} J</b><extra></extra>' },
+  ];
+  const xa = axis(t, fs, { title: 'stroke rate (spm)', dtick: 1, range: [rates[0] - 1, rates[rates.length - 1] + 1] });
+  const ya = axis(t, fs, { title: 'joules per stroke', nticks: 6, rangemode: 'tozero' });
+  return baseLayout ? { data, layout: baseLayout(t, w, h, fs, xa, ya) } : null;
+}
+
 // ---- history: force curve mean ± 1σ, first vs last quarter
 function forceBandFig(strokes, avgCurve, { w, h, fs }) {
   const t = T(), C = strokes.filter((s) => s.curve && s.curve.length > 3).map((s) => resample(s.curve, CURVE_N));
@@ -295,4 +316,4 @@ export function fit(el, [, rMax]) {
   return { w: Math.floor(W), h: Math.floor(Math.min(H, W * rMax)) };
 }
 
-export { T, hexA, mix, seqScale, powerFig, forceFig, paceFig, mapFig, trendFig, splitsFig, histFig, scatterFig, forceBandFig, draw };
+export { T, hexA, mix, seqScale, powerFig, forceFig, paceFig, mapFig, trendFig, splitsFig, histFig, scatterFig, forceBandFig, effFig, computeSplits, draw };
