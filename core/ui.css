@@ -253,7 +253,9 @@ dialog h3 { margin: 0 0 4px; font-size: 1.05rem; }
 .pb-ripple { stroke: color-mix(in srgb, var(--ink) 7%, transparent); }
 .pb-buoy { fill: color-mix(in srgb, var(--ink) 35%, transparent); }
 .pb-buoy.major { fill: var(--accent); }
-.pb-tick { stroke: var(--zero); }
+.pb-tick { stroke: color-mix(in srgb, var(--ink) 22%, transparent); }
+.pb-tick.major { stroke: color-mix(in srgb, var(--ink) 45%, transparent); }
+.pb-centre { stroke: color-mix(in srgb, var(--ink) 28%, transparent); stroke-linecap: round; }
 .pb-label { fill: var(--muted); font-family: var(--mono); letter-spacing: 0.04em; }
 .pb-chk { fill: var(--ink); opacity: 0.85; } .pb-chk.a { fill: var(--water); }
 .pb-puddle { fill: none; stroke: color-mix(in srgb, var(--ink) 30%, transparent); stroke-width: 0.05; }
@@ -358,3 +360,7 @@ table.splits tbody tr:hover td { background: var(--surface-2); }
 table.splits tfoot td { font-weight: 600; border-bottom: 0; border-top: 1px solid var(--border); }
 table.splits tbody td:last-child { font-weight: 400; }
 table.splits tfoot td:last-child { font-weight: 600; }
+
+/* subtitles wrap to a second line on small phones rather than being cut off */
+@media (min-height: 521px) { .ph .ps { white-space: normal; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; text-overflow: clip; } }
+@container (max-height: 26rem) { .inst > .side { display: none !important; } }

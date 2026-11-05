@@ -35,7 +35,7 @@ export function createCyclePanel(host) {
     const r = host.getBoundingClientRect(); W = Math.max(1, r.width); H = Math.max(1, r.height);
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     fs = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-    R = Math.max(40, Math.min(W / 2 - fs * 2.1, H / 2 - fs * 2.6)); cy = H / 2 - fs * 0.35; r0 = R * 0.46; cx = W / 2;
+    R = Math.max(40, Math.min(W / 2 - fs * 2.1, H / 2 - fs * 2.95)); cy = H / 2 - fs * 0.1; r0 = R * 0.46; cx = W / 2;
   }
   const P = (a, r) => [cx + r * Math.sin(a), cy - r * Math.cos(a)];            // angle from 12 o'clock, clockwise
   const arcPath = (a0, a1, r) => { const [x0, y0] = P(a0, r), [x1, y1] = P(a1, r); return `M${x0.toFixed(1)},${y0.toFixed(1)}A${r},${r} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${x1.toFixed(1)},${y1.toFixed(1)}`; };

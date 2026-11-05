@@ -39,6 +39,8 @@ export function createStonesGame(stage, { onEvent = () => {} } = {}) {
   };
   const st = () => stones[S.i];
   const restY = (s) => s.r - 0.002;
+  // the stone starts rigged: slings already around it, hook just above with the slings slack, waiting for the first stroke
+  { const s0 = stones[0]; S.yc = restY(s0); S.hookY = stage.hookYFor(s0, restY(s0)) - SLACK; S.winch = S.hookY; S.attached = true; S.phase = 'lift'; }
   const tautCenterFromWinch = (s, winch) => winch - (stage.hookYFor(s, 0));   // center height when the slings are just taut
 
   function setPhase(p) { S.phase = p; S.pt = 0; onEvent(p, S); }

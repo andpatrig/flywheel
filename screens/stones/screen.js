@@ -4,7 +4,7 @@ import { engine } from '../../core/session.js';
 import { prefs, setPrefs } from '../../core/theme.js';
 
 export const id = 'stones';
-let el, hudEl, host, gfx, stage, game, audio, built = false, shown = false, raf = 0, last = 0, ro;
+let el, hudEl, host, gfx, stage, game, built = false, shown = false, raf = 0, last = 0, ro;
 let mods = null;
 
 const css = `
@@ -39,8 +39,6 @@ const css = `
 #view-stones .st-rail .track b { position: absolute; right: 0; top: -4px; width: 1px; height: 11px; background: rgba(242,242,240,0.6); }
 #view-stones .st-stat { text-align: right; }
 #view-stones .st-mid { flex: 1; display: flex; justify-content: center; align-items: flex-end; }
-#view-stones .st-snd { pointer-events: auto; width: 2.4rem; height: 2.4rem; border: 1px solid rgba(242,242,240,0.22); background: rgba(6,7,8,0.35); color: rgba(242,242,240,0.75); display: grid; place-items: center; cursor: pointer; }
-#view-stones .st-snd svg { width: 1.1rem; height: 1.1rem; } #view-stones .st-snd .off { display: none; } #view-stones .st-snd[data-muted="1"] .on { display: none; } #view-stones .st-snd[data-muted="1"] .off { display: block; }
 #view-stones .st-stat .v { font-size: 1.6rem; font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 #view-stones .st-center { align-self: center; justify-self: center; text-align: center; pointer-events: auto; }
 #view-stones .st-center .msg { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.4rem; }
@@ -67,7 +65,7 @@ export function mount(container, app) {
       </div>
       <div class="st-bottom">
         <div class="st-rail"><div class="st-rv num"><span id="stH">0.00</span><span class="u">m</span><span class="of" id="stOf"> / 1.30</span></div><div class="track"><i id="stFill"></i><b></b></div><div class="st-sub num" id="stGain">&nbsp;</div></div>
-        <div class="st-mid"><button class="st-snd" id="stSnd" title="Sound" aria-label="Sound"><svg class="on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 6.5a8 8 0 0 1 0 11"/></svg><svg class="off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 9l4 6M21 9l-4 6"/></svg></button></div>
+        <div class="st-mid"></div>
         <div class="st-stat"><div class="v num" id="stStrokes">0</div><div class="st-sub num" id="stTotal">strokes · 0.0 kJ</div></div>
       </div>
     </div>`;
@@ -77,9 +75,6 @@ export function mount(container, app) {
     restart();
   };
   engine.on('stroke', ({ stroke }) => { if (game && engine.connected) game.onStroke(stroke.workPerStroke, stroke.driveTime); });
-  // sound: unlocked by the first tap anywhere (iOS requires a gesture), muted state remembered
-  const snd = el.querySelector('#stSnd'); snd.dataset.muted = prefs.sound === false ? '1' : '0';
-  snd.onclick = () => { const m = snd.dataset.muted !== '1'; snd.dataset.muted = m ? '1' : '0'; setPrefs({ sound: !m }); audio?.setMuted(m); if (!m) audio?.unlock(); };
   engine.on('conn', () => updateCenter());
 }
 
@@ -96,7 +91,7 @@ async function build() {
 }
 async function buildInner() {
   if (!hasWebGL2()) throw new Error('this browser has no WebGL 2 (needed for the 3D arena)');
-  mods = await Promise.all([import('../../core/gfx.js'), import('./stage.js'), import('./game.js'), import('./audio.js')]);
+  mods = await Promise.all([import('../../core/gfx.js'), import('./stage.js'), import('./game.js')]);
   const [{ createRenderer, roomEnvironment }, stageMod] = mods;
   await new Promise((r) => setTimeout(r, 30));                                    // let "Building…" paint first
   // the arena is always lit for night: use the dark (neon) accent variant whatever the app theme
@@ -110,14 +105,13 @@ async function buildInner() {
   stage = stageMod.createStage({ renderer: gfx.renderer, envMap: roomEnvironment(gfx.renderer), accent, maxShadow: gfx.maxShadow });
   host.querySelector('.st-loading')?.remove();
   ro = new ResizeObserver(resize); ro.observe(host); resize();
-  audio = mods[3].createStonesAudio(); audio.setMuted(prefs.sound === false); if (shown) audio.start();
   restart();
   if (shown) loop(performance.now());
 }
 function restart() {
   const [, stageMod, gameMod] = mods;
   if (game) { stageMod.STONE_MASSES.forEach((_, i) => stage.placeStone(i, 'floor')); hud._fin = undefined; }
-  game = gameMod.createStonesGame(stage, { onEvent: (n, S) => audio?.onEvent(n, S) });
+  game = gameMod.createStonesGame(stage);
   updateCenter();
 }
 function resize() { if (!gfx) return; const w = host.clientWidth, h = host.clientHeight; if (!w || !h) return; gfx.setSize(w, h); stage.frame(w, h); }
@@ -155,14 +149,13 @@ function loop(now) {
   // physics keeps real time whatever the frame rate: fixed sub-steps, at most 0.5 s caught up per frame
   let acc = Math.min(0.5, (now - last) / 1000 || 0); last = now;
   while (acc > 1e-4) { const step = Math.min(1 / 30, acc); game.update(step, gfx.renderer.domElement.height); acc -= step; }
-  audio?.update(game.S);
   try { hud(); gfx.render(stage.scene, stage.camera, now / 1000); } catch (e) { fail(e, 'render'); return; }
   raf = requestAnimationFrame(loop);
 }
 
 export function show() {
   shown = true; last = performance.now();
-  if (!built) build(); else { resize(); cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); audio?.start(); }
+  if (!built) build(); else { resize(); cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); }
   updateCenter();
 }
-export function hide() { shown = false; cancelAnimationFrame(raf); audio?.stop(); }
+export function hide() { shown = false; cancelAnimationFrame(raf); }

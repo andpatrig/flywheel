@@ -21,7 +21,7 @@ function hullPath() {
 }
 
 /** Build one boat (in metres, bow toward +x) and return a poser. ghost: outline style. */
-function buildBoat(parent, ghost) {
+export function buildBoat(parent, ghost) {
   const g = mk('g', { class: ghost ? 'pb-boat ghost' : 'pb-boat' }, parent);
   const oars = [];
   for (const side of [-1, 1]) {
@@ -74,7 +74,8 @@ export function createBoatPanel(host) {
   const world = mk('g', {}, svg);                 // metres → pixels
   const water = mk('rect', { class: 'pb-water', x: -1e4, y: -LANE * 6, width: 2e4, height: LANE * 12 }, world);
   const ripple = mk('rect', { fill: 'url(#pbRipple)', x: -1e4, y: -LANE * 6, width: 2e4, height: LANE * 12, opacity: 0.9 }, world);
-  const course = mk('g', {}, world);              // lane lines, buoys, distance marks, finish (rebuilt per frame from pools)
+  const course = mk('g', {}, world);
+  const centre = mk('line', { class: 'pb-centre', y1: 0, y2: 0, 'stroke-width': 0.07, 'stroke-dasharray': '1.2 0.9' }, course);              // lane lines, buoys, distance marks, finish (rebuilt per frame from pools)
   const puddles = mk('g', {}, world);
   const finish = mk('g', { visibility: 'hidden' }, world);
   for (let i = 0; i < 12; i++) mk('rect', { class: i % 2 ? 'pb-chk a' : 'pb-chk', x: -0.15, y: -LANE + i * (LANE * 2 / 12), width: 0.3, height: LANE * 2 / 12 }, finish);
@@ -123,10 +124,11 @@ export function createBoatPanel(host) {
     // course: lane lines with buoys every 5 m, a tick every 10 m, a labelled mark every 50 m
     const x0 = cx - along / 2 / k, x1 = cx + along / 2 / k;
     let nb = 0, nt = 0, nl = 0;
-    const lanesY = [-LANE, 0, LANE];
-    for (let m = Math.ceil(x0 / 5) * 5; m <= x1; m += 5) {
-      for (const y of lanesY) { const b = pool(buoyPool, nb + 1, () => mk('circle', { class: 'pb-buoy', r: 0.13 }, course))[nb++]; b.setAttribute('cx', m); b.setAttribute('cy', y); b.setAttribute('class', m % 50 === 0 ? 'pb-buoy major' : 'pb-buoy'); b.style.display = ''; }
-      if (m % 10 === 0) { const tk = pool(tickPool, nt + 1, () => mk('line', { class: 'pb-tick', 'stroke-width': 0.05 }, course))[nt++]; tk.setAttribute('x1', m); tk.setAttribute('x2', m); tk.setAttribute('y1', -0.5); tk.setAttribute('y2', 0.5); tk.style.display = ''; }
+    // a dashed line between the lanes (well clear of the blades), a tick every 10 m and a longer one every 50 m
+    centre.setAttribute('x1', x0 - 2); centre.setAttribute('x2', x1 + 2);
+    for (let m = Math.ceil(x0 / 10) * 10; m <= x1; m += 10) {
+      const major = m % 50 === 0, tk = pool(tickPool, nt + 1, () => mk('line', { class: 'pb-tick', 'stroke-width': 0.06 }, course))[nt++];
+      tk.setAttribute('x1', m); tk.setAttribute('x2', m); tk.setAttribute('y1', major ? -0.7 : -0.3); tk.setAttribute('y2', major ? 0.7 : 0.3); tk.setAttribute('class', major ? 'pb-tick major' : 'pb-tick'); tk.style.display = '';
       if (m % 50 === 0 && m >= 0) {
         const L = pool(labelPool, nl + 1, () => mk('text', { class: 'pb-label', 'text-anchor': 'middle' }, labels))[nl++];
         L.textContent = `${fmtInt(m)}`; L.setAttribute('font-size', (0.72 * fs).toFixed(1)); L.setAttribute('dominant-baseline', 'middle'); L.style.display = '';

@@ -10,7 +10,7 @@ import { fromSession, fromPace, choicesFor } from '../../core/opponent.js';
 import { fmtPace, fmtTime, fmtInt } from '../../core/format.js';
 
 export const id = 'tug';
-let el, host, hudEl, gfx, stage, game, sfx, mods = null, built = false, shown = false, raf = 0, last = 0, ro;
+let el, host, hudEl, gfx, stage, game, mods = null, built = false, shown = false, raf = 0, last = 0, ro;
 let idleT = 0, mode = 'setup', event = null, choice = { kind: 'pace', pace: 120 }, choices = { last: null, best: null };
 let lastStatus = { elapsed: 0, distance: 0, pace: null }, savedFlag = false;
 
