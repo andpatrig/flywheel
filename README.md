@@ -86,6 +86,11 @@ History groups sessions by event (2k, 5k, 30 min, intervals, just row) as report
 Each session opens a report: pace/rate/heart rate, splits (chart and table), power distribution, force curve first
 vs. last quarter, effective work (joules per stroke against rate) and the stroke map, each with a line on how to read it.
 
+## Analysis (Python)
+
+`analysis/` has a Jupyter notebook and a small module that read a session export, chart it, replay it stroke by
+stroke and write a compact summary to hand to Claude for coaching feedback. See `analysis/README.md`.
+
 ## Hosting (5 minutes, free)
 
 Web Bluetooth requires HTTPS. GitHub Pages is the easiest:

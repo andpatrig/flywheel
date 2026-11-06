@@ -1,3 +1,4 @@
+import { classify } from './events.js';
 // core/store.js — saved sessions (IndexedDB), summaries, JSON export.
 import { mean, stddev } from './format.js';
 
@@ -28,6 +29,7 @@ export function sessionJSON(s) {
   return JSON.stringify({
     app: 'flywheel', schema: 1, id: s.id, startedAt: new Date(s.startedAt).toISOString(),
     device: s.device ?? null, ergType: s.ergType ?? null,
+    workout: s.workout ?? null, event: (({ kind, label, target }) => ({ kind, label, target }))(classify(s)),
     units: { elapsed: 's', distance: 'm', pace: 's/500m', power: 'W', force: 'N', driveLength: 'm', driveTime: 's', recoveryTime: 's', workPerStroke: 'J', speed: 'm/s' },
     summary: s.summary,
     strokes: s.strokes.map((x) => ({ n: x.strokeCount, t: r3(x.elapsed), d: r3(x.distance), power: x.power, pace: x.pace, spm: x.spm, hr: x.hr,

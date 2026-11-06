@@ -1,5 +1,5 @@
 // Offline cache. Bump CACHE on every deploy so phones pick up the new version.
-const CACHE = 'flywheel-v19';
+const CACHE = 'flywheel-v20';
 const ASSETS = [
   './', './index.html', './app.js', './manifest.json', './icon.svg', './icon-180.png', './icon-192.png', './icon-512.png',
   './core/prepaint.js', './core/ui.css', './core/ui.js', './core/theme.js', './core/format.js', './core/events.js', './core/opponent.js', './core/pm5.js', './core/session.js', './core/store.js', './core/charts.js',
